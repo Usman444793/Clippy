@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Clippy.Client/Clippy.Client.csproj" />
+  <Project Path="Clippy/Clippy.csproj" />
+</Solution>
