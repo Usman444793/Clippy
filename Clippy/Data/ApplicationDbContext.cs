@@ -1,8 +1,18 @@
 using Clippy.Entities;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 namespace Clippy.Data;
-public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : IdentityDbContext<ApplicationUser>(options)
+public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : IdentityDbContext<
+    ApplicationUser,
+    IdentityRole,
+    string,
+    IdentityUserClaim<string>,
+    IdentityUserRole<string>,
+    IdentityUserLogin<string>,
+    IdentityRoleClaim<string>,
+    IdentityUserToken<string>,
+    IdentityUserPasskey<string>>(options)
 {
     public DbSet<ShortUrl> ShortUrls => Set<ShortUrl>();
     public DbSet<UrlClickLog> UrlClickLogs => Set<UrlClickLog>();

@@ -117,9 +117,15 @@ public static class AuthApiEndpoints
 
         group.MapGet("/external/{provider}", (string provider, string? returnUrl, SignInManager<ApplicationUser> signInManager) =>
         {
+            var authenticationScheme = provider.ToLowerInvariant() switch
+            {
+                "google" => "Google",
+                "facebook" or "meta" => "Facebook",
+                _ => provider
+            };
             var redirectUrl = $"/api/auth/external-callback?returnUrl={Uri.EscapeDataString(returnUrl ?? "/dashboard")}";
-            var properties = signInManager.ConfigureExternalAuthenticationProperties(provider, redirectUrl);
-            return Results.Challenge(properties, [provider]);
+            var properties = signInManager.ConfigureExternalAuthenticationProperties(authenticationScheme, redirectUrl);
+            return Results.Challenge(properties, [authenticationScheme]);
         }).AllowAnonymous();
 
         group.MapGet("/external-callback", async (string? returnUrl, SignInManager<ApplicationUser> signInManager, UserManager<ApplicationUser> userManager) =>
