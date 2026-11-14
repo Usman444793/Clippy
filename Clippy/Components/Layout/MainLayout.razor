@@ -1,6 +1,4 @@
 @inherits LayoutComponentBase
-@using Clippy.Services.Email
-@inject IClippyEmailService EmailService
 
 <div class="clippy-shell">
     <div class="clippy-header-bar">
@@ -14,19 +12,11 @@
 
             <nav class="clippy-nav" aria-label="Primary Navigation">
                 <a href="/" class="clippy-nav-item">Shortener</a>
+                <a href="/#customize" class="clippy-nav-item">Customize</a>
                 <a href="/#features" class="clippy-nav-item">Features</a>
+                <a href="/#faq" class="clippy-nav-item">FAQ</a>
                 <a href="/dashboard" class="clippy-nav-item">
                     <i class="fa-solid fa-lock" style="font-size: 0.72rem; color: var(--clippy-green-text);"></i> My Links
-                </a>
-                <a href="/mailbox" class="clippy-nav-item">
-                    <i class="fa-regular fa-envelope"></i> Email Inbox
-                    @{
-                        var unread = EmailService.GetUnreadCount();
-                    }
-                    @if (unread > 0)
-                    {
-                        <span class="nav-unread-badge">@unread</span>
-                    }
                 </a>
             </nav>
 
@@ -80,12 +70,11 @@
                     <span>clippy<span class="dot-be">.io</span></span>
                 </a>
                 <p style="font-size: 0.8rem; color: var(--clippy-muted); max-width: 380px; margin-top: 0.5rem; margin-bottom: 0;">
-                    Enterprise URL shortener &amp; QR code platform powered by .NET 10, 64-bit Snowflake Base62 IDs, strict owner-only link isolation, and Coursera-grade HTML email verification.
+                    Enterprise URL shortener &amp; QR code platform powered by .NET 10, 64-bit Snowflake Base62 IDs, strict owner-only link isolation, and MailKit SMTP transactional email delivery.
                 </p>
             </div>
             <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; font-size: 0.82rem; font-weight: 600;">
                 <a href="/dashboard" style="color: var(--clippy-text); text-decoration: none;">My Links</a>
-                <a href="/mailbox" style="color: var(--clippy-text); text-decoration: none;">Live Email Inbox</a>
                 <a href="/Account/Login" style="color: var(--clippy-text); text-decoration: none;">Sign In</a>
                 <a href="/Account/Register" style="color: var(--clippy-text); text-decoration: none;">Register</a>
                 <a href="/Account/Manage" style="color: var(--clippy-text); text-decoration: none;">Security &amp; 2FA</a>

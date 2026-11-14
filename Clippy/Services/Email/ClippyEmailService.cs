@@ -1,170 +1,53 @@
 using System.Net;
-using System.Net.Mail;
 using System.Text;
 using Clippy.Data;
+using MailKit;
+using MailKit.Net.Smtp;
+using MailKit.Security;
 using Microsoft.Extensions.Options;
+using MimeKit;
 
 namespace Clippy.Services.Email;
 
-public sealed class ClippyEmailService : IClippyEmailService
+public sealed class ClippyEmailService(
+    IOptions<EmailSettingsOptions> options,
+    ILogger<ClippyEmailService> logger) : IClippyEmailService
 {
-    private readonly ILogger<ClippyEmailService> _logger;
-    private readonly string _outboxDir;
-    private readonly Lock _sync = new();
-    private readonly List<DispatchedEmailMessage> _messages = [];
-    private EmailSettingsOptions _runtimeSettings;
-
-    public event Action? OnMailboxUpdated;
-
-    public ClippyEmailService(
-        IOptions<EmailSettingsOptions> options,
-        IWebHostEnvironment env,
-        ILogger<ClippyEmailService> logger)
-    {
-        _logger = logger;
-        _runtimeSettings = new EmailSettingsOptions
-        {
-            SmtpHost = options.Value.SmtpHost,
-            SmtpPort = options.Value.SmtpPort,
-            SmtpUser = options.Value.SmtpUser,
-            SmtpPassword = options.Value.SmtpPassword,
-            EnableSsl = options.Value.EnableSsl,
-            FromEmail = string.IsNullOrWhiteSpace(options.Value.FromEmail) ? "security@clippy.io" : options.Value.FromEmail,
-            FromName = string.IsNullOrWhiteSpace(options.Value.FromName) ? "Clippy Enterprise Security" : options.Value.FromName
-        };
-
-        _outboxDir = Path.Combine(env.ContentRootPath, "App_Data", "EmailOutbox");
-        try
-        {
-            Directory.CreateDirectory(_outboxDir);
-        }
-        catch
-        {
-            // Ignore directory creation errors in restricted environments
-        }
-    }
-
-    public EmailSettingsOptions GetCurrentSettings()
-    {
-        lock (_sync)
-        {
-            return new EmailSettingsOptions
-            {
-                SmtpHost = _runtimeSettings.SmtpHost,
-                SmtpPort = _runtimeSettings.SmtpPort,
-                SmtpUser = _runtimeSettings.SmtpUser,
-                SmtpPassword = _runtimeSettings.SmtpPassword,
-                EnableSsl = _runtimeSettings.EnableSsl,
-                FromEmail = _runtimeSettings.FromEmail,
-                FromName = _runtimeSettings.FromName
-            };
-        }
-    }
-
-    public void UpdateRuntimeSmtpSettings(EmailSettingsOptions updated)
-    {
-        lock (_sync)
-        {
-            _runtimeSettings = new EmailSettingsOptions
-            {
-                SmtpHost = updated.SmtpHost?.Trim() ?? string.Empty,
-                SmtpPort = updated.SmtpPort > 0 ? updated.SmtpPort : 587,
-                SmtpUser = updated.SmtpUser?.Trim() ?? string.Empty,
-                SmtpPassword = updated.SmtpPassword ?? string.Empty,
-                EnableSsl = updated.EnableSsl,
-                FromEmail = string.IsNullOrWhiteSpace(updated.FromEmail) ? "security@clippy.io" : updated.FromEmail.Trim(),
-                FromName = string.IsNullOrWhiteSpace(updated.FromName) ? "Clippy Enterprise Security" : updated.FromName.Trim()
-            };
-        }
-    }
-
-    public IReadOnlyList<DispatchedEmailMessage> GetRecentEmails(string? filterEmail = null)
-    {
-        lock (_sync)
-        {
-            var query = _messages.AsEnumerable();
-            if (!string.IsNullOrWhiteSpace(filterEmail))
-            {
-                query = query.Where(x => x.ToEmail.Equals(filterEmail.Trim(), StringComparison.OrdinalIgnoreCase));
-            }
-            return query.OrderByDescending(x => x.SentAtUtc).Take(50).ToList();
-        }
-    }
-
-    public int GetUnreadCount(string? filterEmail = null)
-    {
-        lock (_sync)
-        {
-            var query = _messages.Where(x => !x.IsRead);
-            if (!string.IsNullOrWhiteSpace(filterEmail))
-            {
-                query = query.Where(x => x.ToEmail.Equals(filterEmail.Trim(), StringComparison.OrdinalIgnoreCase));
-            }
-            return query.Count();
-        }
-    }
-
-    public void MarkAsRead(Guid id)
-    {
-        lock (_sync)
-        {
-            var idx = _messages.FindIndex(x => x.Id == id);
-            if (idx >= 0 && !_messages[idx].IsRead)
-            {
-                _messages[idx] = _messages[idx] with { IsRead = true };
-            }
-        }
-        OnMailboxUpdated?.Invoke();
-    }
-
-    public void MarkAllAsRead()
-    {
-        lock (_sync)
-        {
-            for (int i = 0; i < _messages.Count; i++)
-            {
-                if (!_messages[i].IsRead)
-                {
-                    _messages[i] = _messages[i] with { IsRead = true };
-                }
-            }
-        }
-        OnMailboxUpdated?.Invoke();
-    }
+    private readonly EmailSettingsOptions _settings = options.Value;
 
     public Task SendConfirmationLinkAsync(ApplicationUser user, string email, string confirmationLink)
     {
         var cleanUrl = WebUtility.HtmlDecode(confirmationLink);
-        return SendCustomTemplateEmailAsync(
+        return SendTemplatedEmailAsync(
             toEmail: email,
             subject: "Verify your Clippy Enterprise account",
             category: "Account Verification",
             headline: "Verify your email address",
-            introParagraph: $"Hi {user.DisplayName ?? email.Split('@')[0]}, welcome to Clippy Enterprise! Please confirm your email address so we can activate your personal Snowflake link workspace, custom aliases, and real-time click analytics.",
+            introParagraph: $"Hi {user.DisplayName ?? email.Split('@')[0]}, welcome to Clippy Enterprise! Please confirm your email address by clicking the button below to activate your Snowflake link workspace, custom aliases, and real-time click analytics.",
             actionUrl: cleanUrl,
             actionLabel: "Verify Email Address",
-            securityFooterNote: "If you did not create a Clippy Enterprise account, you can safely ignore this message."
+            securityFooterNote: "If you did not create a Clippy Enterprise account, you can safely ignore this email."
         );
     }
 
     public Task SendPasswordResetLinkAsync(ApplicationUser user, string email, string resetLink)
     {
         var cleanUrl = WebUtility.HtmlDecode(resetLink);
-        return SendCustomTemplateEmailAsync(
+        return SendTemplatedEmailAsync(
             toEmail: email,
             subject: "Reset your Clippy Enterprise password",
             category: "Password Reset",
             headline: "Password reset request",
-            introParagraph: $"Hi {user.DisplayName ?? email.Split('@')[0]}, we received a request to reset the password for your Clippy Enterprise account ({email}). Click the button below to choose a new password.",
+            introParagraph: $"Hi {user.DisplayName ?? email.Split('@')[0]}, we received a request to reset the password for your Clippy Enterprise account ({email}). Click the button below to set a new password.",
             actionUrl: cleanUrl,
             actionLabel: "Reset My Password",
-            securityFooterNote: "This password reset link is single-use and expires shortly. If you didn't request a password reset, your account remains secure."
+            securityFooterNote: "This password reset link is single-use and expires shortly. If you did not request a password reset, no action is required."
         );
     }
 
     public Task SendPasswordResetCodeAsync(ApplicationUser user, string email, string resetCode)
     {
-        return SendCustomTemplateEmailAsync(
+        return SendTemplatedEmailAsync(
             toEmail: email,
             subject: $"Your Clippy password reset code: {resetCode}",
             category: "Security Code",
@@ -177,7 +60,7 @@ public sealed class ClippyEmailService : IClippyEmailService
 
     public Task SendEmailAsync(string email, string subject, string htmlMessage)
     {
-        return SendCustomTemplateEmailAsync(
+        return SendTemplatedEmailAsync(
             toEmail: email,
             subject: subject,
             category: "Notification",
@@ -186,9 +69,14 @@ public sealed class ClippyEmailService : IClippyEmailService
         );
     }
 
-    public Task<DispatchedEmailMessage> SendOtpVerificationEmailAsync(string toEmail, string otpCode, string purpose, DateTime expiresAtUtc, CancellationToken ct = default)
+    public Task SendOtpVerificationEmailAsync(
+        string toEmail,
+        string otpCode,
+        string purpose,
+        DateTime expiresAtUtc,
+        CancellationToken ct = default)
     {
-        return SendCustomTemplateEmailAsync(
+        return SendTemplatedEmailAsync(
             toEmail: toEmail,
             subject: $"{otpCode} is your Clippy Enterprise verification code",
             category: $"OTP ({purpose})",
@@ -200,7 +88,7 @@ public sealed class ClippyEmailService : IClippyEmailService
         );
     }
 
-    public async Task<DispatchedEmailMessage> SendCustomTemplateEmailAsync(
+    public async Task SendTemplatedEmailAsync(
         string toEmail,
         string subject,
         string category,
@@ -212,99 +100,98 @@ public sealed class ClippyEmailService : IClippyEmailService
         string? securityFooterNote = null,
         CancellationToken ct = default)
     {
-        var settings = GetCurrentSettings();
-        var htmlBody = BuildCourseraStyleEmailHtml(
-            toEmail,
-            category,
-            headline,
-            introParagraph,
-            actionUrl,
-            actionLabel,
-            otpCode,
-            securityFooterNote ?? "Sent by Clippy Enterprise Identity & Link Security.");
+        var senderEmail = string.IsNullOrWhiteSpace(_settings.SenderEmail)
+            || _settings.SenderEmail.StartsWith("YOUR_", StringComparison.OrdinalIgnoreCase)
+            || _settings.SenderEmail.StartsWith("EmailSettings__", StringComparison.OrdinalIgnoreCase)
+            ? _settings.SmtpUsername
+            : _settings.SenderEmail;
 
-        bool deliveredSmtp = false;
-        string deliveryNote;
-
-        if (!string.IsNullOrWhiteSpace(settings.SmtpHost) &&
-            !string.IsNullOrWhiteSpace(settings.SmtpUser) &&
-            !string.IsNullOrWhiteSpace(settings.SmtpPassword))
+        if (string.IsNullOrWhiteSpace(_settings.SmtpHost) ||
+            string.IsNullOrWhiteSpace(_settings.SmtpUsername) ||
+            string.IsNullOrWhiteSpace(_settings.SmtpPassword) ||
+            _settings.SmtpUsername.StartsWith("YOUR_", StringComparison.OrdinalIgnoreCase) ||
+            _settings.SmtpUsername.StartsWith("EmailSettings__", StringComparison.OrdinalIgnoreCase) ||
+            _settings.SmtpPassword.StartsWith("YOUR_", StringComparison.OrdinalIgnoreCase) ||
+            _settings.SmtpPassword.StartsWith("EmailSettings__", StringComparison.OrdinalIgnoreCase))
         {
-            try
-            {
-                using var message = new MailMessage
-                {
-                    From = new MailAddress(settings.FromEmail, settings.FromName),
-                    Subject = subject,
-                    Body = htmlBody,
-                    IsBodyHtml = true,
-                    BodyEncoding = Encoding.UTF8,
-                    SubjectEncoding = Encoding.UTF8
-                };
-                message.To.Add(new MailAddress(toEmail));
-
-                using var client = new SmtpClient(settings.SmtpHost, settings.SmtpPort)
-                {
-                    EnableSsl = settings.EnableSsl,
-                    UseDefaultCredentials = false,
-                    Credentials = new NetworkCredential(settings.SmtpUser, settings.SmtpPassword),
-                    DeliveryMethod = SmtpDeliveryMethod.Network,
-                    Timeout = 10000
-                };
-
-                await client.SendMailAsync(message, ct);
-                deliveredSmtp = true;
-                deliveryNote = $"Delivered via SMTP ({settings.SmtpHost}:{settings.SmtpPort}) & archived to Live Mailbox.";
-                _logger.LogInformation("[CLIPPY EMAIL SMTP SENT] To={ToEmail} | Subject={Subject}", toEmail, subject);
-            }
-            catch (Exception ex)
-            {
-                deliveryNote = $"SMTP delivery failed ({ex.Message}); captured in Live Mailbox Outbox for immediate use.";
-                _logger.LogWarning(ex, "[CLIPPY EMAIL SMTP FALLBACK] Captured in Live Outbox for {ToEmail}", toEmail);
-            }
-        }
-        else
-        {
-            deliveryNote = "Captured in Clippy Live Mailbox Outbox (Configure SMTP in Mailbox settings for external delivery).";
+            throw new InvalidOperationException(
+                "MailKit SMTP credentials are not configured. Please set 'EmailSettings:SenderEmail', 'EmailSettings:SmtpUsername', and 'EmailSettings:SmtpPassword' in .NET User Secrets.");
         }
 
-        var id = Guid.NewGuid();
-        var dispatched = new DispatchedEmailMessage(
-            Id: id,
-            ToEmail: toEmail,
-            Subject: subject,
-            Category: category,
-            HtmlBody: htmlBody,
-            ActionUrl: actionUrl,
-            ActionLabel: actionLabel,
-            OtpCode: otpCode,
-            SentAtUtc: DateTime.UtcNow,
-            DeliveredViaSmtp: deliveredSmtp,
-            DeliveryStatusNote: deliveryNote,
-            IsRead: false
-        );
+        var message = new MimeMessage();
+        message.From.Add(new MailboxAddress(
+            string.IsNullOrWhiteSpace(_settings.SenderName) ? "Clippy Enterprise" : _settings.SenderName,
+            senderEmail.Trim()));
+        message.To.Add(MailboxAddress.Parse(toEmail.Trim()));
+        message.Subject = subject;
+
+        var bodyBuilder = new BodyBuilder
+        {
+            HtmlBody = BuildCourseraStyleEmailHtml(
+                toEmail,
+                category,
+                headline,
+                introParagraph,
+                actionUrl,
+                actionLabel,
+                otpCode,
+                securityFooterNote ?? "Sent by Clippy Enterprise Identity & Link Security."),
+            TextBody = BuildPlainTextFallback(headline, introParagraph, actionUrl, otpCode, securityFooterNote)
+        };
+
+        message.Body = bodyBuilder.ToMessageBody();
+
+        using var smtpClient = new SmtpClient();
+        var secureSocketOptions = _settings.UseStartTls
+            ? SecureSocketOptions.StartTls
+            : (_settings.SmtpPort == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.Auto);
 
         try
         {
-            var filePath = Path.Combine(_outboxDir, $"{DateTime.UtcNow:yyyyMMdd_HHmmss}_{id:N}.html");
-            await File.WriteAllTextAsync(filePath, htmlBody, Encoding.UTF8, ct);
-        }
-        catch
-        {
-            // Ignore disk write issues if sandbox restricts folder
-        }
+            await smtpClient.ConnectAsync(_settings.SmtpHost, _settings.SmtpPort, secureSocketOptions, ct);
+            await smtpClient.AuthenticateAsync(_settings.SmtpUsername.Trim(), _settings.SmtpPassword, ct);
+            await smtpClient.SendAsync(message, ct);
+            await smtpClient.DisconnectAsync(true, ct);
 
-        lock (_sync)
-        {
-            _messages.Add(dispatched);
-            if (_messages.Count > 100)
-            {
-                _messages.RemoveAt(0);
-            }
+            logger.LogInformation(
+                "[MailKit SMTP] Successfully sent '{Category}' email to {RecipientEmail} via {SmtpHost}:{SmtpPort}.",
+                category, toEmail, _settings.SmtpHost, _settings.SmtpPort);
         }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "[MailKit SMTP] Failed to send email to {RecipientEmail} via {SmtpHost}:{SmtpPort}.",
+                toEmail, _settings.SmtpHost, _settings.SmtpPort);
+            throw;
+        }
+    }
 
-        OnMailboxUpdated?.Invoke();
-        return dispatched;
+    private static string BuildPlainTextFallback(
+        string headline,
+        string introParagraph,
+        string? actionUrl,
+        string? otpCode,
+        string? footerNote)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("CLIPPY ENTERPRISE");
+        sb.AppendLine("========================================");
+        sb.AppendLine(headline);
+        sb.AppendLine();
+        sb.AppendLine(introParagraph);
+        if (!string.IsNullOrWhiteSpace(otpCode))
+        {
+            sb.AppendLine();
+            sb.AppendLine($"Verification Code: {otpCode}");
+        }
+        if (!string.IsNullOrWhiteSpace(actionUrl))
+        {
+            sb.AppendLine();
+            sb.AppendLine($"Action Link: {actionUrl}");
+        }
+        sb.AppendLine();
+        sb.AppendLine("----------------------------------------");
+        sb.AppendLine(footerNote ?? "Sent by Clippy Enterprise.");
+        return sb.ToString();
     }
 
     private static string BuildCourseraStyleEmailHtml(
@@ -324,7 +211,7 @@ public sealed class ClippyEmailService : IClippyEmailService
         <head>
             <meta charset="utf-8" />
             <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-            <title>Clippy Enterprise Notification</title>
+            <title>Clippy Enterprise</title>
         </head>
         <body style="margin:0;padding:0;background-color:#F7F3EE;font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#14181F;">
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#F7F3EE;padding:32px 16px;">

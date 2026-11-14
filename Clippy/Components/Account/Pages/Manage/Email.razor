@@ -14,19 +14,14 @@
 
 <PageTitle>Manage Email | Clippy Enterprise</PageTitle>
 
-<div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
-    <div>
-        <span class="eyebrow-pill" style="margin-bottom: 0.35rem;">
-            <i class="fa-solid fa-envelope-circle-check"></i> Coursera-Style HTML Verification
-        </span>
-        <h3 style="font-size: 1.45rem; font-weight: 800; color: var(--clippy-dark); margin: 0;">Manage Email &amp; Verification</h3>
-        <p style="font-size: 0.85rem; color: var(--clippy-muted); margin: 0.25rem 0 0 0;">
-            Update your primary account email address or trigger a verification email to your inbox.
-        </p>
-    </div>
-    <a href="/mailbox?email=@Uri.EscapeDataString(email ?? "")" class="btn-clippy-outline" style="padding: 0.45rem 1rem; font-size: 0.8rem;">
-        <i class="fa-solid fa-inbox"></i> Open Live Email Inbox
-    </a>
+<div style="margin-bottom: 1.5rem;">
+    <span class="eyebrow-pill" style="margin-bottom: 0.35rem;">
+        <i class="fa-solid fa-envelope-circle-check"></i> MailKit STARTTLS Verification
+    </span>
+    <h3 style="font-size: 1.45rem; font-weight: 800; color: var(--clippy-dark); margin: 0;">Manage Email &amp; Verification</h3>
+    <p style="font-size: 0.85rem; color: var(--clippy-muted); margin: 0.25rem 0 0 0;">
+        Update your primary account email address or trigger a verification email via MailKit SMTP.
+    </p>
 </div>
 
 <StatusMessage Message="@message"/>
@@ -78,7 +73,7 @@ else
                 <i class="fa-solid fa-paper-plane me-1"></i> Send Change Email Link
             </button>
             <button type="submit" class="btn-clippy-outline" form="send-verification-form">
-                <i class="fa-solid fa-envelope-open-text"></i> Send Verification Email Now
+                <i class="fa-solid fa-envelope-open-text"></i> Send Verification Email
             </button>
         </div>
     </EditForm>
@@ -134,9 +129,15 @@ else
             NavigationManager.ToAbsoluteUri("Account/ConfirmEmailChange").AbsoluteUri,
             new Dictionary<string, object?> { ["userId"] = userId, ["email"] = Input.NewEmail, ["code"] = code });
 
-        await EmailSender.SendConfirmationLinkAsync(user, Input.NewEmail, HtmlEncoder.Default.Encode(callbackUrl));
-
-        message = $"Coursera-style confirmation email sent to {Input.NewEmail}. Check your inbox or click 'Open Live Email Inbox' above!";
+        try
+        {
+            await EmailSender.SendConfirmationLinkAsync(user, Input.NewEmail, HtmlEncoder.Default.Encode(callbackUrl));
+            message = $"Confirmation link to change email sent via MailKit SMTP to {Input.NewEmail}. Please check your inbox.";
+        }
+        catch (Exception ex)
+        {
+            message = $"Error: {ex.Message}";
+        }
     }
 
     private async Task OnSendEmailVerificationAsync()
@@ -153,9 +154,15 @@ else
             NavigationManager.ToAbsoluteUri("Account/ConfirmEmail").AbsoluteUri,
             new Dictionary<string, object?> { ["userId"] = userId, ["code"] = code });
 
-        await EmailSender.SendConfirmationLinkAsync(user, email, HtmlEncoder.Default.Encode(callbackUrl));
-
-        message = $"Verification email dispatched to {email}. Open Live Email Inbox above to view the rendered HTML email!";
+        try
+        {
+            await EmailSender.SendConfirmationLinkAsync(user, email, HtmlEncoder.Default.Encode(callbackUrl));
+            message = $"Verification email sent via MailKit SMTP to {email}. Please check your inbox.";
+        }
+        catch (Exception ex)
+        {
+            message = $"Error: {ex.Message}";
+        }
     }
 
     private sealed class InputModel

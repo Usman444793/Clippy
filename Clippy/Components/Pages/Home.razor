@@ -311,11 +311,9 @@
                     </Authorized>
                     <NotAuthorized>
                         <a href="/Account/Login" class="btn-clippy-dark">Sign In to Workspace</a>
+                        <a href="/Account/Register" class="btn-clippy-outline">Create Free Account</a>
                     </NotAuthorized>
                 </AuthorizeView>
-                <a href="/mailbox" class="btn-clippy-outline">
-                    <i class="fa-solid fa-inbox"></i> Open Live Email Inbox
-                </a>
             </div>
         </div>
         <div class="media-frame">
@@ -352,8 +350,8 @@
             <div class="feature-list-item" style="margin-bottom: 0;">
                 <div class="feature-icon-badge"><i class="fa-solid fa-envelope-open-text"></i></div>
                 <div>
-                    <strong style="display: block; font-size: 0.95rem;">Coursera-Style HTML Email &amp; Passkey Auth</strong>
-                    <span style="font-size: 0.82rem; color: var(--clippy-muted);">Real SMTP delivery + built-in Live Mailbox for account verification, password recovery, and 6-digit OTP login.</span>
+                    <strong style="display: block; font-size: 0.95rem;">MailKit STARTTLS Email &amp; Passkey Auth</strong>
+                    <span style="font-size: 0.82rem; color: var(--clippy-muted);">Real MailKit + MimeKit SMTP delivery for Coursera-style account verification, password recovery, and 6-digit OTP login.</span>
                 </div>
             </div>
         </div>
@@ -481,7 +479,7 @@
         ("Can another user alter, pause, or delete my shortened URLs?",
          "Never. Clippy enforces strict owner-only authorization at both the API and service layers. Every shortened link is bound to your authenticated UserId, and any edit, status toggle, analytics query, or delete operation verifies ownership against your identity."),
         ("How does Clippy send verification and 6-digit OTP emails?",
-         "Clippy uses a Coursera-grade responsive HTML email engine supporting live TLS SMTP delivery (Gmail, SendGrid, Mailgun, SES) alongside a real-time in-app Live Email Inbox (/mailbox) for instant testing."),
+         "Clippy uses MailKit and MimeKit over STARTTLS/SSL (configured via .NET User Secrets) to deliver Coursera-style responsive HTML verification, password reset, and 6-digit OTP emails directly to your inbox."),
         ("How does Clippy handle viral traffic spikes (Cache Stampedes)?",
          "When a short link is requested, Clippy checks Layer 1 IMemoryCache first. On a cache miss, a Single-Flight Lazy<Task> + keyed SemaphoreSlim lock ensures only the first request queries SQL Server while concurrent requests wait microseconds for the cache to hydrate."),
         ("What happens when I edit a custom alias or destination URL?",

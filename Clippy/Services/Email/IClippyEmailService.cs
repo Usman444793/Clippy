@@ -7,41 +7,26 @@ namespace Clippy.Services.Email;
 public sealed class EmailSettingsOptions
 {
     public const string SectionName = "EmailSettings";
-    public string SmtpHost { get; set; } = string.Empty;
-    public int SmtpPort { get; set; } = 587;
-    public string SmtpUser { get; set; } = string.Empty;
-    public string SmtpPassword { get; set; } = string.Empty;
-    public bool EnableSsl { get; set; } = true;
-    public string FromEmail { get; set; } = "security@clippy.io";
-    public string FromName { get; set; } = "Clippy Enterprise Security";
-}
 
-public sealed record DispatchedEmailMessage(
-    Guid Id,
-    string ToEmail,
-    string Subject,
-    string Category,
-    string HtmlBody,
-    string? ActionUrl,
-    string? ActionLabel,
-    string? OtpCode,
-    DateTime SentAtUtc,
-    bool DeliveredViaSmtp,
-    string DeliveryStatusNote,
-    bool IsRead = false
-);
+    public string SmtpHost { get; set; } = "smtp.gmail.com";
+    public int SmtpPort { get; set; } = 587;
+    public bool UseStartTls { get; set; } = true;
+    public string SenderName { get; set; } = "Clippy Enterprise";
+    public string SenderEmail { get; set; } = string.Empty;
+    public string SmtpUsername { get; set; } = string.Empty;
+    public string SmtpPassword { get; set; } = string.Empty;
+}
 
 public interface IClippyEmailService : IEmailSender<ApplicationUser>, IEmailSender
 {
-    event Action? OnMailboxUpdated;
-    IReadOnlyList<DispatchedEmailMessage> GetRecentEmails(string? filterEmail = null);
-    int GetUnreadCount(string? filterEmail = null);
-    void MarkAsRead(Guid id);
-    void MarkAllAsRead();
-    EmailSettingsOptions GetCurrentSettings();
-    void UpdateRuntimeSmtpSettings(EmailSettingsOptions updated);
-    Task<DispatchedEmailMessage> SendOtpVerificationEmailAsync(string toEmail, string otpCode, string purpose, DateTime expiresAtUtc, CancellationToken ct = default);
-    Task<DispatchedEmailMessage> SendCustomTemplateEmailAsync(
+    Task SendOtpVerificationEmailAsync(
+        string toEmail,
+        string otpCode,
+        string purpose,
+        DateTime expiresAtUtc,
+        CancellationToken ct = default);
+
+    Task SendTemplatedEmailAsync(
         string toEmail,
         string subject,
         string category,

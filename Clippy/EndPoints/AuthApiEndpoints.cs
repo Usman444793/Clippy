@@ -47,21 +47,28 @@ public static class AuthApiEndpoints
             });
             await db.SaveChangesAsync(ct);
 
-            var dispatchedEmail = await emailService.SendOtpVerificationEmailAsync(
-                cleanEmail,
-                result.rawCode,
-                request.Purpose,
-                result.ExpiresAtUtc,
-                ct);
-
-            return Results.Ok(new
+            try
             {
-                message = $"A 6-digit verification code has been sent to {cleanEmail}.",
-                expiresAtUtc = result.ExpiresAtUtc,
-                deliveredViaSmtp = dispatchedEmail.DeliveredViaSmtp,
-                deliveryNote = dispatchedEmail.DeliveryStatusNote,
-                mailboxMessageId = dispatchedEmail.Id
-            });
+                await emailService.SendOtpVerificationEmailAsync(
+                    cleanEmail,
+                    result.rawCode,
+                    request.Purpose,
+                    result.ExpiresAtUtc,
+                    ct);
+
+                return Results.Ok(new
+                {
+                    message = $"A 6-digit verification code has been sent via MailKit SMTP to {cleanEmail}.",
+                    expiresAtUtc = result.ExpiresAtUtc
+                });
+            }
+            catch (Exception ex)
+            {
+                return Results.Problem(
+                    detail: ex.Message,
+                    title: "MailKit SMTP Delivery Failed",
+                    statusCode: StatusCodes.Status500InternalServerError);
+            }
         }).RequireRateLimiting(RateLimitExtensions.OtpPolicy).AllowAnonymous();
 
         group.MapPost("/otp/verify", async ([FromBody] VerifyOtpRequest request, IOtpService otpService, UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager) =>

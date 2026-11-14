@@ -1,50 +1,25 @@
 @page "/Account/RegisterConfirmation"
-@using System.Text
 @using Microsoft.AspNetCore.Identity
-@using Microsoft.AspNetCore.WebUtilities
 @using Clippy.Data
-@using Clippy.Services.Email
 
 @inject UserManager<ApplicationUser> UserManager
-@inject IClippyEmailService EmailService
-@inject NavigationManager NavigationManager
 @inject IdentityRedirectManager RedirectManager
 
 <PageTitle>Verify Your Email | Clippy Enterprise</PageTitle>
 
 <section class="clippy-auth-container">
-    <div class="clippy-auth-card" style="max-width: 680px; margin: 0 auto;">
+    <div class="clippy-auth-card" style="max-width: 660px; margin: 0 auto;">
         <div class="eyebrow-pill" style="margin-bottom: 0.65rem;">
-            <i class="fa-solid fa-envelope-circle-check"></i> Coursera-Style Transactional Verification Dispatched
+            <i class="fa-solid fa-envelope-circle-check"></i> MailKit STARTTLS Verification Dispatched
         </div>
         <h1 style="font-size: 1.95rem; font-weight: 800; color: var(--clippy-dark); margin: 0 0 0.5rem 0;">
-            Check your inbox to verify your email
+            Check your email to confirm your account
         </h1>
         <p style="color: var(--clippy-muted); font-size: 0.92rem; line-height: 1.65; margin-bottom: 1.5rem;">
-            We dispatched a verification email to <strong>@Email</strong> with a secure one-click activation button.
+            We sent a verification email to <strong>@Email</strong> via MailKit SMTP. Click the <strong>Verify Email Address</strong> button inside the email to activate your account.
         </p>
 
         <StatusMessage Message="@statusMessage" />
-
-        <div style="background: var(--clippy-cream); border: 1px solid var(--clippy-border); border-radius: 1.25rem; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem;">
-            <div style="font-size: 0.78rem; font-weight: 800; text-transform: uppercase; color: var(--clippy-green-text); margin-bottom: 0.35rem;">
-                <i class="fa-solid fa-paper-plane me-1"></i> Email Delivery Status
-            </div>
-            <p style="font-size: 0.85rem; color: var(--clippy-text); margin: 0 0 1rem 0;">
-                Your Coursera-style HTML verification email has been generated and sent. You can check your email client or inspect it immediately in the built-in Clippy Live Mailbox.
-            </p>
-            <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
-                <a href="/mailbox?email=@Uri.EscapeDataString(Email ?? "")" class="btn-clippy-green">
-                    <i class="fa-solid fa-inbox"></i> Open Live Email Inbox
-                </a>
-                @if (!string.IsNullOrWhiteSpace(emailConfirmationLink))
-                {
-                    <a href="@emailConfirmationLink" class="btn-clippy-dark">
-                        <i class="fa-solid fa-circle-check"></i> Instant One-Click Confirm
-                    </a>
-                }
-            </div>
-        </div>
 
         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; padding-top: 1rem; border-top: 1px solid var(--clippy-border);">
             <a href="/Account/Login" style="color: var(--clippy-dark); font-weight: 700; text-decoration: none;">
@@ -58,7 +33,6 @@
 </section>
 
 @code {
-    private string? emailConfirmationLink;
     private string? statusMessage;
 
     [CascadingParameter]
@@ -66,9 +40,6 @@
 
     [SupplyParameterFromQuery]
     private string? Email { get; set; }
-
-    [SupplyParameterFromQuery]
-    private string? ReturnUrl { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
@@ -83,15 +54,6 @@
         {
             HttpContext.Response.StatusCode = StatusCodes.Status404NotFound;
             statusMessage = "Error finding user for the specified email address.";
-        }
-        else
-        {
-            var userId = await UserManager.GetUserIdAsync(user);
-            var code = await UserManager.GenerateEmailConfirmationTokenAsync(user);
-            code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
-            emailConfirmationLink = NavigationManager.GetUriWithQueryParameters(
-                NavigationManager.ToAbsoluteUri("Account/ConfirmEmail").AbsoluteUri,
-                new Dictionary<string, object?> { ["userId"] = userId, ["code"] = code, ["returnUrl"] = ReturnUrl });
         }
     }
 }
