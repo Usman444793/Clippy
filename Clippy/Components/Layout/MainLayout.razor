@@ -1,9 +1,55 @@
 ﻿@inherits LayoutComponentBase
-
-@Body
-
-<div id="blazor-error-ui" data-nosnippet>
-    An unhandled error has occurred.
-    <a href="." class="reload">Reload</a>
-    <span class="dismiss">🗙</span>
+<div class="clippy-shell">
+    <header class="clippy-header">
+        <a href="/" class="clippy-brand">
+            <span class="clippy-brand-icon">
+                <i class="fa-solid fa-paperclip"></i>
+            </span>
+            <span>clippy<span class="dot-be">.io</span></span>
+        </a>
+        <nav class="clippy-nav">
+            <a href="/#features">Features</a>
+            <a href="/#customize">Customize</a>
+            <a href="/#faq">FAQ</a>
+            <a href="/dashboard">Analytics</a>
+        </nav>
+        <div class="clippy-header-actions">
+            <span class="clippy-lang-pill">
+                <a href="/Account/Login">
+                <i class="fa-solid fa-arrow-right-to-bracket"></i> Login
+                </a>
+            </span>
+            <AuthorizeView>
+                <Authorized>
+                    <a href="/dashboard" class="btn-clippy-outline">
+                        <i class="fa-solid fa-chart-pie"></i> Dashboard
+                    </a>
+                </Authorized>
+                <NotAuthorized>
+                    <a href="/Account/Register" class="btn-clippy-dark">
+                        Get Started
+                    </a>
+                </NotAuthorized>
+            </AuthorizeView>
+        </div>
+    </header>
+    <main style="flex: 1;">
+        @Body
+    </main>
+    <footer class="clippy-header" style="border-top: 1px solid var(--clippy-border); margin-top: 3rem; padding-top: 2rem; padding-bottom: 2.5rem; flex-wrap: wrap; gap: 1.5rem;">
+        <div>
+            <a href="/" class="clippy-brand">
+                <span class="clippy-brand-icon">
+                    <i class="fa-solid fa-paperclip"></i>
+                </span>
+                <span>clippy<span class="dot-be">.be</span></span>
+            </a>
+            <p style="font-size: 0.8rem; color: var(--clippy-muted); max-width: 300px; margin-top: 0.5rem;">
+                Enterprise URL shortener & QR code generator powered by .NET 10, Snowflake Base62 IDs, and stampede-protected caching.
+            </p>
+        </div>
+        <div style="font-size: 0.8rem; color: var(--clippy-muted);">
+            <strong>All rights reserved</strong> &bull; Copyright &copy; @DateTime.UtcNow.Year Clippy Enterprise
+        </div>
+    </footer>
 </div>

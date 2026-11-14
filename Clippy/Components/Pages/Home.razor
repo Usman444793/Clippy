@@ -1,7 +1,306 @@
 ﻿@page "/"
+@rendermode InteractiveServer
+@using System.Security.Claims
+@using Clippy.Client.Models
+@using Clippy.Services.Shortening
+@inject IUrlShortenerService ShortenerService
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JS
+<PageTitle>Clippy - URL Shortener and QR Code Generator</PageTitle>
+<section class="hero-section">
+    <div class="hero-grid">
+        <div>
+            <div class="eyebrow-pill">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> Let's make with simply one click
+            </div>
+            <h1 class="hero-heading">
+                Url shortener and<br />QR code generator
+            </h1>
+            <p class="hero-description">
+                Transform everything into dynamic links and QR codes that lead more people to what matters in just one place, free.
+            </p>
+        </div>
+        <div class="hero-portrait-card">
+            <img src="https://images.unsplash.com/photo-1779094528783-ad61dca45b7f?q=80&w=687&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=NHwxMjA3fDA%3D?auto=format&fit=crop&w=900&q=80" alt="Happy Creator using Clippy" />
+        </div>
+    </div>
+    <div class="shortener-floating-bar">
+        <div class="shortener-form-row">
+            <div class="shortener-input-cell">
+                <label><i class="fa-solid fa-link"></i> Your URL</label>
+                <input type="url"
+                       placeholder="https://www.yourdomain.com/very-long-article-path"
+                       @bind="requestModel.DestinationUrl"
+                       @bind:event="oninput" />
+            </div>
+            <div class="shortener-input-cell no-border">
+                <label><i class="fa-solid fa-pen-nib"></i> Customize URL</label>
+                <input type="text"
+                       placeholder="Add alias (optional)"
+                       @bind="requestModel.CustomAlias" />
+            </div>
+            <button class="btn-clippy-green" @onclick="CreateShortLinkAsync" disabled="@isSubmitting">
+                @if (isSubmitting)
+                {
+                    <i class="fa-solid fa-spinner fa-spin"></i> <span>Shortening...</span>
+                }
+                else
+                {
+                    <span>Shorten URL</span>
+                }
+            </button>
+        </div>
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div style="margin-top: 0.85rem; padding: 0.65rem 1rem; border-radius: 0.75rem; background: #FEE2E2; color: #991B1B; font-size: 0.85rem; font-weight: 600;">
+                <i class="fa-solid fa-triangle-exclamation me-1"></i> @errorMessage
+            </div>
+        }
+        @if (latestCreatedLink is not null)
+        {
+            <div class="shortener-result-banner">
+                <div style="display: flex; align-items: center; gap: 0.85rem; flex-wrap: wrap;">
+                    <span class="shortened-link-pill">
+                        <i class="fa-solid fa-bolt" style="color: var(--clippy-green-text);"></i>
+                        <a href="@latestCreatedLink.ShortenedFullUrl" target="_blank" style="color: inherit; text-decoration: none;">
+                            @latestCreatedLink.ShortenedFullUrl
+                        </a>
+                    </span>
+                    <span style="font-size: 0.8rem; color: var(--clippy-muted);">
+                        Snowflake ID: <code>#@latestCreatedLink.Id</code>
+                    </span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.6rem;">
+                    <button class="btn-clippy-outline" @onclick="() => CopyToClipboardAsync(latestCreatedLink.ShortenedFullUrl)">
+                        <i class="fa-regular @(copiedRecently ? "fa-circle-check" : "fa-copy")"></i>
+                        @(copiedRecently ? "Copied!" : "Copy URL")
+                    </button>
+                    <button class="btn-clippy-dark" @onclick="() => selectedQrItem = latestCreatedLink">
+                        <i class="fa-solid fa-qrcode"></i> QR Code
+                    </button>
+                    <a href="/dashboard?code=@(latestCreatedLink.CustomAlias ?? latestCreatedLink.ShortCode)" class="btn-clippy-outline">
+                        <i class="fa-solid fa-chart-line"></i> Analytics
+                    </a>
+                </div>
+            </div>
+        }
+    </div>
+</section>
+<section class="white-showcase-sheet" id="customize">
+    <div class="zig-zag-row">
+        <div class="media-frame">
+            <div class="media-green-Accent"></div>
+            <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=800&q=80" alt="Customize URLs" />
+            <div class="glass-url-overlay">
+                <i class="fa-solid fa-link" style="color: var(--clippy-green);"></i>
+                <span>clippy.be/<strong>launch-2027</strong></span>
+            </div>
+        </div>
+        <div class="zig-zag-copy">
+            <h2>Customize URLs<br /><strong>of your way</strong></h2>
+            <p>
+                Replace cryptic, fragile query strings with memorable branded aliases backed by our 64-bit Snowflake Base62 generator and instant cache-stampede protection.
+            </p>
+            <a href="/dashboard" class="btn-clippy-dark">Shorten URL</a>
+        </div>
+    </div>
+    <div class="zig-zag-row">
+        <div class="zig-zag-copy">
+            <div class="eyebrow-pill">
+                <i class="fa-solid fa-qrcode"></i> Instant Vector QR Codes
+            </div>
+            <h2>Customize URLs<br /><strong>of your way</strong></h2>
+            <p>
+                Every shortened URL automatically generates a high-resolution vector SVG QR code ready for print, packaging, or digital campaigns with real-time scan telemetry.
+            </p>
+            <a href="/auth/login" class="btn-clippy-dark">Shorten URL</a>
+        </div>
+        <div class="media-frame">
+            <div class="media-green-Accent right"></div>
+            <img src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=800&q=80" alt="Developer Analytics" />
+            <div class="glass-url-overlay">
+                <i class="fa-solid fa-shield-halved" style="color: var(--clippy-green);"></i>
+                <span>SSRF & Phishing Guard Active</span>
+            </div>
+        </div>
+    </div>
+</section>
+<section class="feature-split-section" id="features">
+    <div class="feature-cream-box">
+        <div>
+            <h2 style="font-size: 1.9rem; font-weight: 800; margin: 0 0 1.75rem 0;">
+                Enterprise resilience built for scale
+            </h2>
+            <div class="feature-list-item">
+                <div class="feature-icon-badge"><i class="fa-solid fa-bolt"></i></div>
+                <div>
+                    <strong style="display: block; font-size: 0.95rem;">Stampede-Protected RAM Cache</strong>
+                    <span style="font-size: 0.82rem; color: var(--clippy-muted);">Keyed SemaphoreSlim locks prevent viral traffic spikes from overwhelming SQL Server.</span>
+                </div>
+            </div>
+            <div class="feature-list-item">
+                <div class="feature-icon-badge"><i class="fa-solid fa-chart-simple"></i></div>
+                <div>
+                    <strong style="display: block; font-size: 0.95rem;">Non-Blocking Channel Telemetry</strong>
+                    <span style="font-size: 0.82rem; color: var(--clippy-muted);">Redirects complete in sub-milliseconds while background workers batch-insert GDPR-safe click logs.</span>
+                </div>
+            </div>
+            <div class="feature-list-item" style="margin-bottom: 0;">
+                <div class="feature-icon-badge"><i class="fa-solid fa-user-shield"></i></div>
+                <div>
+                    <strong style="display: block; font-size: 0.95rem;">OAuth 2.0, OIDC & HMAC OTP</strong>
+                    <span style="font-size: 0.82rem; color: var(--clippy-muted);">Sign in with Google, Meta, or step-up 6-digit OTP protected by Fixed-Window IP rate limiters.</span>
+                </div>
+            </div>
+        </div>
+        <div>
+            <img src="https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&w=700&q=80"
+                 alt="Analytics Workspace"
+                 style="width: 100%; height: 290px; object-fit: cover; border-radius: 1.25rem; box-shadow: 0 12px 28px rgba(0,0,0,0.08);" />
+        </div>
+    </div>
+    <div class="feature-green-pattern-card">
+        <div>
+            <span style="font-family: var(--font-mono); font-size: 0.75rem; font-weight: 700; text-transform: uppercase;">Live Telemetry</span>
+            <h3 style="font-size: 2rem; font-weight: 800; margin-top: 0.5rem;">Sub-ms Redirects</h3>
+            <p style="font-size: 0.9rem; opacity: 0.88;">
+                Zero database collision checks on write using 64-bit Snowflake IDs encoded in Base62.
+            </p>
+        </div>
+        <div style="background: rgba(255,255,255,0.85); padding: 1rem 1.25rem; border-radius: 1rem; font-family: var(--font-mono); font-size: 0.8rem;">
+            <div>GET /{shortCode} &rarr; <strong>302 Found</strong></div>
+            <div style="color: var(--clippy-green-text); margin-top: 0.25rem;">Cache Tier: L1 MemoryCache Hit</div>
+        </div>
+    </div>
+</section>
+<section class="faq-section" id="faq">
+    <h2 style="font-size: 2rem; font-weight: 800; margin-bottom: 1.75rem;">Frequently asked questions</h2>
+    @for (int i = 0; i < faqItems.Length; i++)
+    {
+        var index = i;
+        var item = faqItems[index];
+        var isOpen = openFaqIndex == index;
+        <div class="faq-item">
+            <button class="faq-question" @onclick="() => ToggleFaq(index)">
+                <span>@item.Question</span>
+                <i class="fa-solid @(isOpen ? "fa-circle-minus" : "fa-circle-plus")" style="color: var(--clippy-muted); font-size: 1.15rem;"></i>
+            </button>
+            @if (isOpen)
+            {
+                <div class="faq-answer">
+                    @item.Answer
+                </div>
+            }
+        </div>
+    }
+</section>
+<section style="padding: 0 1.5rem;">
+    <div class="dark-cta-banner">
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <div style="width: 3rem; height: 3rem; border-radius: 0.85rem; background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
+                <i class="fa-regular fa-comments" style="color: var(--clippy-green);"></i>
+            </div>
+            <div>
+                <h4 style="margin: 0; font-size: 1.15rem; font-weight: 700;">Ready to manage your links & live click telemetry?</h4>
+                <p style="margin: 0.2rem 0 0 0; font-size: 0.85rem; color: #A0A7B4;">Sign in with Google, Meta, or passwordless 6-digit OTP in seconds.</p>
+            </div>
+        </div>
+        <a href="/auth/login" class="btn-clippy-outline" style="border: none;">
+            Get Started Free
+        </a>
+    </div>
+</section>
+@if (selectedQrItem is not null)
+{
+    <div class="clippy-modal-backdrop" @onclick="() => selectedQrItem = null">
+        <div class="clippy-modal-card" @onclick:stopPropagation="true">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h4 style="margin: 0; font-weight: 800;">Vector QR Code</h4>
+                <button style="background: none; border: none; font-size: 1.4rem; cursor: pointer;" @onclick="() => selectedQrItem = null">&times;</button>
+            </div>
+            <div style="background: var(--clippy-cream); padding: 1.25rem; border-radius: 1rem; margin-bottom: 1rem;">
+                <img src="@selectedQrItem.QrCodeSvgBase64" alt="QR Code" style="width: 220px; height: 220px;" />
+            </div>
+            <div style="font-family: var(--font-mono); font-size: 0.85rem; font-weight: 700; margin-bottom: 1.25rem; color: var(--clippy-dark);">
+                @selectedQrItem.ShortenedFullUrl
+            </div>
+            <div style="display: flex; gap: 0.75rem; justify-content: center;">
+                <button class="btn-clippy-green" @onclick="() => DownloadQrSvgAsync(selectedQrItem)">
+                    <i class="fa-solid fa-download"></i> Download SVG
+                </button>
+                <button class="btn-clippy-outline" @onclick="() => selectedQrItem = null">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+}
+@code{
+    private CreateShortUrlRequest requestModel = new();
+    private ShortUrlDto? latestCreatedLink;
+    private ShortUrlDto? selectedQrItem;
+    private bool isSubmitting;
+    private bool copiedRecently;
+    private string? errorMessage;
+    private int openFaqIndex = 0;
+    private readonly (string Question, string Answer)[] faqItems =
+    [
+        ("How does Clippy avoid database collisions when shortening URLs?",
+         "Clippy uses an in-memory 64-bit Snowflake ID generator combined with Base62 encoding. Every link receives a mathematically unique 64-bit integer without needing to check SQL Server for random string collisions."),
+        ("How does Clippy handle viral traffic spikes (Cache Stampedes)?",
+         "When a short link is requested, Clippy checks Layer 1 IMemoryCache first. On a cache miss, a keyed SemaphoreSlim lock ensures only the first request queries SQL Server while concurrent requests wait microseconds for the cache to hydrate."),
+        ("How is visitor privacy protected in Click Analytics?",
+         "Clippy never stores raw IP addresses on disk. Our background analytics worker hashes visitor IPs with a rotating daily salt using SHA-256 to compute unique visitor counts while remaining 100% GDPR-compliant."),
+        ("What happens when a shortened link expires or is flagged as malicious?",
+         "Our UrlSafetyScanner blocks SSRF, localhost, and phishing patterns before saving. If a link expires, Clippy returns an explicit HTTP 410 Gone status code.")
+    ];
+    private async Task CreateShortLinkAsync()
+    {
+        errorMessage = null;
+        copiedRecently = false;
+        if (string.IsNullOrWhiteSpace(requestModel.DestinationUrl))
+        {
+            errorMessage = "Please paste a valid HTTP or HTTPS URL first.";
+            return;
+        }
+        isSubmitting = true;
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var userId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var baseUrl = Navigation.BaseUri.TrimEnd('/');
 
-<PageTitle>Home</PageTitle>
+            var result = await ShortenerService.CreateShortUrlAsync(requestModel, userId, baseUrl);
+            if (!result.Succeeded || result.Data is null)
+            {
+                errorMessage = result.ErrorMessage ?? "Could not shorten link.";
+                return;
+            }
 
-<h1>Hello, world!</h1>
-
-Welcome to your new app.
+            latestCreatedLink = result.Data;
+            requestModel = new CreateShortUrlRequest();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+    private async Task CopyToClipboardAsync(string text)
+    {
+        copiedRecently = await JS.InvokeAsync<bool>("clippyInterop.copyText", text);
+    }
+    private async Task DownloadQrSvgAsync(ShortUrlDto item)
+    {
+        var filename = $"clippy-qr-{item.CustomAlias ?? item.ShortCode}.svg";
+        await JS.InvokeVoidAsync("clippyInterop.downloadDataUri", item.QrCodeSvgBase64, filename);
+    }
+    private void ToggleFaq(int index)
+    {
+        openFaqIndex = openFaqIndex == index ? -1 : index;
+    }
+}
