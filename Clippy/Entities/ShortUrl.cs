@@ -31,6 +31,6 @@ public class ShortUrl
     public string? FlaggedReason { get; set; }
     public long TotalClicks { get; set; }
     [Timestamp]
-    public byte[]? RowVersion { get; set; }
+    public uint RowVersion { get; set; }
     public ICollection<UrlClickLog> ClickLogs { get; set; } = new List<UrlClickLog>();
 }

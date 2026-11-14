@@ -543,10 +543,18 @@
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         currentUserId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
         currentUserName = authState.User.Identity?.IsAuthenticated == true ? authState.User.Identity.Name : "Owner";
-        await LoadLinksAsync();
-        if (!string.IsNullOrWhiteSpace(InitialAnalyticsCode))
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
         {
-            await OpenAnalyticsAsync(InitialAnalyticsCode);
+            await LoadLinksAsync();
+            if (!string.IsNullOrWhiteSpace(InitialAnalyticsCode))
+            {
+                await OpenAnalyticsAsync(InitialAnalyticsCode);
+            }
+            StateHasChanged();
         }
     }
 

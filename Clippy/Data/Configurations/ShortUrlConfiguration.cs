@@ -16,7 +16,7 @@ public sealed class ShortUrlConfiguration : IEntityTypeConfiguration<ShortUrl>
         builder.Property(x => x.SafetyStatus).HasConversion<int>();
         builder.Property(x => x.RowVersion).IsRowVersion();
         builder.HasIndex(x => x.shortCode).IsUnique().HasDatabaseName("IX_ShortUrls_ShortCode_Unique");
-        builder.HasIndex(x => x.CustomAlias).IsUnique().HasFilter("[CustomAlias] IS NOT NULL").HasDatabaseName("IX_ShortUrls_CustomAlias_Unique");
+        builder.HasIndex(x => x.CustomAlias).IsUnique().HasFilter("\"CustomAlias\" IS NOT NULL").HasDatabaseName("IX_ShortUrls_CustomAlias_Unique");
         builder.HasIndex(x => new { x.UserId, x.CreatedAtUtc }).IsDescending(false, true).HasDatabaseName("IX_ShortUrls_UserId_CreatedAtUtc");
         builder.HasOne(x => x.User).WithMany(x => x.ShortUrls).HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.SetNull);
     }

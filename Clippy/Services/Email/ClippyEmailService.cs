@@ -6,15 +6,10 @@ using MailKit.Net.Smtp;
 using MailKit.Security;
 using Microsoft.Extensions.Options;
 using MimeKit;
-
 namespace Clippy.Services.Email;
-
-public sealed class ClippyEmailService(
-    IOptions<EmailSettingsOptions> options,
-    ILogger<ClippyEmailService> logger) : IClippyEmailService
+public sealed class ClippyEmailService(IOptions<EmailSettingsOptions> options,ILogger<ClippyEmailService> logger) : IClippyEmailService
 {
     private readonly EmailSettingsOptions _settings = options.Value;
-
     public Task SendConfirmationLinkAsync(ApplicationUser user, string email, string confirmationLink)
     {
         var cleanUrl = WebUtility.HtmlDecode(confirmationLink);
@@ -29,7 +24,6 @@ public sealed class ClippyEmailService(
             securityFooterNote: "If you did not create a Clippy Enterprise account, you can safely ignore this email."
         );
     }
-
     public Task SendPasswordResetLinkAsync(ApplicationUser user, string email, string resetLink)
     {
         var cleanUrl = WebUtility.HtmlDecode(resetLink);
@@ -44,7 +38,6 @@ public sealed class ClippyEmailService(
             securityFooterNote: "This password reset link is single-use and expires shortly. If you did not request a password reset, no action is required."
         );
     }
-
     public Task SendPasswordResetCodeAsync(ApplicationUser user, string email, string resetCode)
     {
         return SendTemplatedEmailAsync(
@@ -57,7 +50,6 @@ public sealed class ClippyEmailService(
             securityFooterNote: "Never share this security code with anyone."
         );
     }
-
     public Task SendEmailAsync(string email, string subject, string htmlMessage)
     {
         return SendTemplatedEmailAsync(
@@ -68,7 +60,6 @@ public sealed class ClippyEmailService(
             introParagraph: htmlMessage
         );
     }
-
     public Task SendOtpVerificationEmailAsync(
         string toEmail,
         string otpCode,
@@ -87,7 +78,6 @@ public sealed class ClippyEmailService(
             ct: ct
         );
     }
-
     public async Task SendTemplatedEmailAsync(
         string toEmail,
         string subject,
@@ -100,31 +90,18 @@ public sealed class ClippyEmailService(
         string? securityFooterNote = null,
         CancellationToken ct = default)
     {
-        var senderEmail = string.IsNullOrWhiteSpace(_settings.SenderEmail)
-            || _settings.SenderEmail.StartsWith("YOUR_", StringComparison.OrdinalIgnoreCase)
-            || _settings.SenderEmail.StartsWith("EmailSettings__", StringComparison.OrdinalIgnoreCase)
-            ? _settings.SmtpUsername
-            : _settings.SenderEmail;
-
-        if (string.IsNullOrWhiteSpace(_settings.SmtpHost) ||
-            string.IsNullOrWhiteSpace(_settings.SmtpUsername) ||
-            string.IsNullOrWhiteSpace(_settings.SmtpPassword) ||
-            _settings.SmtpUsername.StartsWith("YOUR_", StringComparison.OrdinalIgnoreCase) ||
-            _settings.SmtpUsername.StartsWith("EmailSettings__", StringComparison.OrdinalIgnoreCase) ||
-            _settings.SmtpPassword.StartsWith("YOUR_", StringComparison.OrdinalIgnoreCase) ||
-            _settings.SmtpPassword.StartsWith("EmailSettings__", StringComparison.OrdinalIgnoreCase))
+        var senderEmail = string.IsNullOrWhiteSpace(_settings.SenderEmail) || _settings.SenderEmail.StartsWith("YOUR_", StringComparison.OrdinalIgnoreCase) || _settings.SenderEmail.StartsWith("EmailSettings__", StringComparison.OrdinalIgnoreCase) ? _settings.SmtpUsername : _settings.SenderEmail;
+        if (string.IsNullOrWhiteSpace(_settings.SmtpHost) || string.IsNullOrWhiteSpace(_settings.SmtpUsername) ||
+        string.IsNullOrWhiteSpace(_settings.SmtpPassword) || _settings.SmtpUsername.StartsWith("YOUR_", StringComparison.OrdinalIgnoreCase) ||
+        _settings.SmtpUsername.StartsWith("EmailSettings__", StringComparison.OrdinalIgnoreCase) || _settings.SmtpPassword.StartsWith("YOUR_", StringComparison.OrdinalIgnoreCase) ||
+        _settings.SmtpPassword.StartsWith("EmailSettings__", StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException(
-                "MailKit SMTP credentials are not configured. Please set 'EmailSettings:SenderEmail', 'EmailSettings:SmtpUsername', and 'EmailSettings:SmtpPassword' in .NET User Secrets.");
+            throw new InvalidOperationException("MailKit SMTP credentials are not configured. Please set 'EmailSettings:SenderEmail', 'EmailSettings:SmtpUsername', and 'EmailSettings:SmtpPassword' in .NET User Secrets.");
         }
-
         var message = new MimeMessage();
-        message.From.Add(new MailboxAddress(
-            string.IsNullOrWhiteSpace(_settings.SenderName) ? "Clippy Enterprise" : _settings.SenderName,
-            senderEmail.Trim()));
+        message.From.Add(new MailboxAddress(string.IsNullOrWhiteSpace(_settings.SenderName) ? "Clippy Enterprise" : _settings.SenderName,senderEmail.Trim()));
         message.To.Add(MailboxAddress.Parse(toEmail.Trim()));
         message.Subject = subject;
-
         var bodyBuilder = new BodyBuilder
         {
             HtmlBody = BuildCourseraStyleEmailHtml(
@@ -138,24 +115,16 @@ public sealed class ClippyEmailService(
                 securityFooterNote ?? "Sent by Clippy Enterprise Identity & Link Security."),
             TextBody = BuildPlainTextFallback(headline, introParagraph, actionUrl, otpCode, securityFooterNote)
         };
-
         message.Body = bodyBuilder.ToMessageBody();
-
         using var smtpClient = new SmtpClient();
-        var secureSocketOptions = _settings.UseStartTls
-            ? SecureSocketOptions.StartTls
-            : (_settings.SmtpPort == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.Auto);
-
+        var secureSocketOptions = _settings.UseStartTls ? SecureSocketOptions.StartTls : (_settings.SmtpPort == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.Auto);
         try
         {
             await smtpClient.ConnectAsync(_settings.SmtpHost, _settings.SmtpPort, secureSocketOptions, ct);
             await smtpClient.AuthenticateAsync(_settings.SmtpUsername.Trim(), _settings.SmtpPassword, ct);
             await smtpClient.SendAsync(message, ct);
             await smtpClient.DisconnectAsync(true, ct);
-
-            logger.LogInformation(
-                "[MailKit SMTP] Successfully sent '{Category}' email to {RecipientEmail} via {SmtpHost}:{SmtpPort}.",
-                category, toEmail, _settings.SmtpHost, _settings.SmtpPort);
+            logger.LogInformation("[MailKit SMTP] Successfully sent '{Category}' email to {RecipientEmail} via {SmtpHost}:{SmtpPort}.", category, toEmail, _settings.SmtpHost, _settings.SmtpPort);
         }
         catch (Exception ex)
         {
@@ -164,7 +133,6 @@ public sealed class ClippyEmailService(
             throw;
         }
     }
-
     private static string BuildPlainTextFallback(
         string headline,
         string introParagraph,
@@ -193,7 +161,6 @@ public sealed class ClippyEmailService(
         sb.AppendLine(footerNote ?? "Sent by Clippy Enterprise.");
         return sb.ToString();
     }
-
     private static string BuildCourseraStyleEmailHtml(
         string recipientEmail,
         string category,

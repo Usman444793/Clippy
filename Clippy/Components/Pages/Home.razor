@@ -337,7 +337,7 @@
                 <div class="feature-icon-badge"><i class="fa-solid fa-bolt"></i></div>
                 <div>
                     <strong style="display: block; font-size: 0.95rem;">Stampede-Protected RAM Cache</strong>
-                    <span style="font-size: 0.82rem; color: var(--clippy-muted);">Single-Flight Lazy&lt;Task&gt; + SemaphoreSlim locks prevent viral traffic spikes from overwhelming SQL Server.</span>
+                    <span style="font-size: 0.82rem; color: var(--clippy-muted);">Single-Flight Lazy&lt;Task&gt; + SemaphoreSlim locks prevent viral traffic spikes from overwhelming PostgreSQL.</span>
                 </div>
             </div>
             <div class="feature-list-item">
@@ -481,9 +481,9 @@
         ("How does Clippy send verification and 6-digit OTP emails?",
          "Clippy uses MailKit and MimeKit over STARTTLS/SSL (configured via .NET User Secrets) to deliver Coursera-style responsive HTML verification, password reset, and 6-digit OTP emails directly to your inbox."),
         ("How does Clippy handle viral traffic spikes (Cache Stampedes)?",
-         "When a short link is requested, Clippy checks Layer 1 IMemoryCache first. On a cache miss, a Single-Flight Lazy<Task> + keyed SemaphoreSlim lock ensures only the first request queries SQL Server while concurrent requests wait microseconds for the cache to hydrate."),
+         "When a short link is requested, Clippy checks Layer 1 IMemoryCache first. On a cache miss, a Single-Flight Lazy<Task> + keyed SemaphoreSlim lock ensures only the first request queries PostgreSQL while concurrent requests wait microseconds for the cache to hydrate."),
         ("What happens when I edit a custom alias or destination URL?",
-         "When you update a link in your workspace, Clippy re-scans the destination URL for SSRF/malware, updates SQL Server, and immediately evicts both the old and new codes from the L1 IMemoryCache so redirects update in sub-milliseconds.")
+         "When you update a link in your workspace, Clippy re-scans the destination URL for SSRF/malware, updates PostgreSQL, and immediately evicts both the old and new codes from the L1 IMemoryCache so redirects update in sub-milliseconds.")
     ];
 
     protected override async Task OnInitializedAsync()
@@ -492,7 +492,15 @@
         currentUserId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
         isAuthenticated = authState.User.Identity?.IsAuthenticated == true && !string.IsNullOrWhiteSpace(currentUserId);
         currentUserName = isAuthenticated ? (authState.User.Identity?.Name ?? "Workspace Owner") : null;
-        await LoadMyLinksWithSkeletonAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LoadMyLinksWithSkeletonAsync();
+            StateHasChanged();
+        }
     }
 
     private async Task LoadMyLinksWithSkeletonAsync()

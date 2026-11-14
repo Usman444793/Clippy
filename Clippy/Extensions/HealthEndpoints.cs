@@ -24,7 +24,7 @@ public static class HealthEndpoints
                     return Results.Json(new
                     {
                         status = "Degraded",
-                        sqlServer = "Unreachable",
+                        database = "Unreachable",
                         latencyMs = sw.ElapsedMilliseconds
                     }, statusCode: StatusCodes.Status503ServiceUnavailable);
                 }
@@ -32,7 +32,7 @@ public static class HealthEndpoints
                 {
                     status = "Healthy",
                     service = "Clippy Enterprise URL Engine (.NET 10)",
-                    sqlServer = "Connected",
+                    database = "Connected",
                     snowflakeNodeSample = sampleSnowflake.ShortCode,
                     probeLatencyMs = sw.ElapsedMilliseconds,
                     timestampUtc = DateTime.UtcNow

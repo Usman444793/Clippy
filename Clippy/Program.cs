@@ -42,7 +42,8 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 
 builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
-    options.UseSqlServer(connectionString));
+    options.UseNpgsql(connectionString, npgsqlOptions =>
+        npgsqlOptions.EnableRetryOnFailure()));
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
 builder.Services.AddIdentityCore<ApplicationUser>(options =>
@@ -88,7 +89,7 @@ try
 }
 catch (Exception ex)
 {
-    app.Logger.LogWarning(ex, "Database migration check skipped on startup. Ensure SQL Server is running.");
+    app.Logger.LogWarning(ex, "Database migration check skipped on startup. Ensure PostgreSQL is running and the connection string is valid.");
 }
 
 if (app.Environment.IsDevelopment())
