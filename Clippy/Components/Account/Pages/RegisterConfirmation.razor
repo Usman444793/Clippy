@@ -1,32 +1,61 @@
-﻿@page "/Account/RegisterConfirmation"
-
+@page "/Account/RegisterConfirmation"
 @using System.Text
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.AspNetCore.WebUtilities
 @using Clippy.Data
+@using Clippy.Services.Email
 
 @inject UserManager<ApplicationUser> UserManager
-@inject IEmailSender<ApplicationUser> EmailSender
+@inject IClippyEmailService EmailService
 @inject NavigationManager NavigationManager
 @inject IdentityRedirectManager RedirectManager
 
-<PageTitle>Register confirmation</PageTitle>
+<PageTitle>Verify Your Email | Clippy Enterprise</PageTitle>
 
-<h1>Register confirmation</h1>
+<section class="clippy-auth-container">
+    <div class="clippy-auth-card" style="max-width: 680px; margin: 0 auto;">
+        <div class="eyebrow-pill" style="margin-bottom: 0.65rem;">
+            <i class="fa-solid fa-envelope-circle-check"></i> Coursera-Style Transactional Verification Dispatched
+        </div>
+        <h1 style="font-size: 1.95rem; font-weight: 800; color: var(--clippy-dark); margin: 0 0 0.5rem 0;">
+            Check your inbox to verify your email
+        </h1>
+        <p style="color: var(--clippy-muted); font-size: 0.92rem; line-height: 1.65; margin-bottom: 1.5rem;">
+            We dispatched a verification email to <strong>@Email</strong> with a secure one-click activation button.
+        </p>
 
-<StatusMessage Message="@statusMessage" />
+        <StatusMessage Message="@statusMessage" />
 
-@if (emailConfirmationLink is not null)
-{
-    <p>
-        This app does not currently have a real email sender registered, see <a href="https://aka.ms/aspaccountconf">these docs</a> for how to configure a real email sender.
-        Normally this would be emailed: <a href="@emailConfirmationLink">Click here to confirm your account</a>
-    </p>
-}
-else
-{
-    <p role="alert">Please check your email to confirm your account.</p>
-}
+        <div style="background: var(--clippy-cream); border: 1px solid var(--clippy-border); border-radius: 1.25rem; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem;">
+            <div style="font-size: 0.78rem; font-weight: 800; text-transform: uppercase; color: var(--clippy-green-text); margin-bottom: 0.35rem;">
+                <i class="fa-solid fa-paper-plane me-1"></i> Email Delivery Status
+            </div>
+            <p style="font-size: 0.85rem; color: var(--clippy-text); margin: 0 0 1rem 0;">
+                Your Coursera-style HTML verification email has been generated and sent. You can check your email client or inspect it immediately in the built-in Clippy Live Mailbox.
+            </p>
+            <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                <a href="/mailbox?email=@Uri.EscapeDataString(Email ?? "")" class="btn-clippy-green">
+                    <i class="fa-solid fa-inbox"></i> Open Live Email Inbox
+                </a>
+                @if (!string.IsNullOrWhiteSpace(emailConfirmationLink))
+                {
+                    <a href="@emailConfirmationLink" class="btn-clippy-dark">
+                        <i class="fa-solid fa-circle-check"></i> Instant One-Click Confirm
+                    </a>
+                }
+            </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; padding-top: 1rem; border-top: 1px solid var(--clippy-border);">
+            <a href="/Account/Login" style="color: var(--clippy-dark); font-weight: 700; text-decoration: none;">
+                &larr; Return to Sign In
+            </a>
+            <a href="/Account/ResendEmailConfirmation" style="color: var(--clippy-green-text); font-weight: 600; text-decoration: none;">
+                Didn't receive it? Resend email
+            </a>
+        </div>
+    </div>
+</section>
 
 @code {
     private string? emailConfirmationLink;
@@ -53,11 +82,10 @@ else
         if (user is null)
         {
             HttpContext.Response.StatusCode = StatusCodes.Status404NotFound;
-            statusMessage = "Error finding user for unspecified email";
+            statusMessage = "Error finding user for the specified email address.";
         }
-        else if (EmailSender is IdentityNoOpEmailSender)
+        else
         {
-            // Once you add a real email sender, you should remove this code that lets you confirm the account
             var userId = await UserManager.GetUserIdAsync(user);
             var code = await UserManager.GenerateEmailConfirmationTokenAsync(user);
             code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));

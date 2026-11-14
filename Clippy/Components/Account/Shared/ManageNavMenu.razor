@@ -1,32 +1,49 @@
-﻿@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Identity
 @using Clippy.Data
 
 @inject SignInManager<ApplicationUser> SignInManager
 
+<div style="font-size: 0.72rem; font-weight: 800; text-transform: uppercase; color: var(--clippy-muted); padding: 0.25rem 0.75rem 0.6rem 0.75rem; letter-spacing: 0.04em;">
+    Security &amp; Preferences
+</div>
 <ul class="nav nav-pills flex-column">
     <li class="nav-item">
-        <NavLink class="nav-link" href="Account/Manage" Match="NavLinkMatch.All">Profile</NavLink>
+        <NavLink class="nav-link" href="Account/Manage" Match="NavLinkMatch.All">
+            <i class="fa-regular fa-id-badge"></i> Profile
+        </NavLink>
     </li>
     <li class="nav-item">
-        <NavLink class="nav-link" href="Account/Manage/Email">Email</NavLink>
+        <NavLink class="nav-link" href="Account/Manage/Email">
+            <i class="fa-regular fa-envelope"></i> Email Address
+        </NavLink>
     </li>
     <li class="nav-item">
-        <NavLink class="nav-link" href="Account/Manage/ChangePassword">Password</NavLink>
+        <NavLink class="nav-link" href="Account/Manage/ChangePassword">
+            <i class="fa-solid fa-key"></i> Password
+        </NavLink>
     </li>
     @if (hasExternalLogins)
     {
         <li class="nav-item">
-            <NavLink class="nav-link" href="Account/Manage/ExternalLogins">External logins</NavLink>
+            <NavLink class="nav-link" href="Account/Manage/ExternalLogins">
+                <i class="fa-solid fa-plug"></i> External Logins
+            </NavLink>
         </li>
     }
     <li class="nav-item">
-        <NavLink class="nav-link" href="Account/Manage/TwoFactorAuthentication">Two-factor authentication</NavLink>
+        <NavLink class="nav-link" href="Account/Manage/TwoFactorAuthentication">
+            <i class="fa-solid fa-shield-halved"></i> Two-Factor (2FA)
+        </NavLink>
     </li>
     <li class="nav-item">
-        <NavLink class="nav-link" href="Account/Manage/Passkeys">Passkeys</NavLink>
+        <NavLink class="nav-link" href="Account/Manage/Passkeys">
+            <i class="fa-solid fa-fingerprint"></i> Passkeys (WebAuthn)
+        </NavLink>
     </li>
     <li class="nav-item">
-        <NavLink class="nav-link" href="Account/Manage/PersonalData">Personal data</NavLink>
+        <NavLink class="nav-link" href="Account/Manage/PersonalData">
+            <i class="fa-solid fa-database"></i> Personal Data (GDPR)
+        </NavLink>
     </li>
 </ul>
 

@@ -1,55 +1,101 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+@using Clippy.Services.Email
+@inject IClippyEmailService EmailService
+
 <div class="clippy-shell">
-    <header class="clippy-header">
-        <a href="/" class="clippy-brand">
-            <span class="clippy-brand-icon">
-                <i class="fa-solid fa-paperclip"></i>
-            </span>
-            <span>clippy<span class="dot-be">.io</span></span>
-        </a>
-        <nav class="clippy-nav">
-            <a href="/#features">Features</a>
-            <a href="/#customize">Customize</a>
-            <a href="/#faq">FAQ</a>
-            <a href="/dashboard">Analytics</a>
-        </nav>
-        <div class="clippy-header-actions">
-            <span class="clippy-lang-pill">
-                <a href="/Account/Login">
-                <i class="fa-solid fa-arrow-right-to-bracket"></i> Login
-                </a>
-            </span>
-            <AuthorizeView>
-                <Authorized>
-                    <a href="/dashboard" class="btn-clippy-outline">
-                        <i class="fa-solid fa-chart-pie"></i> Dashboard
-                    </a>
-                </Authorized>
-                <NotAuthorized>
-                    <a href="/Account/Register" class="btn-clippy-dark">
-                        Get Started
-                    </a>
-                </NotAuthorized>
-            </AuthorizeView>
-        </div>
-    </header>
-    <main style="flex: 1;">
-        @Body
-    </main>
-    <footer class="clippy-header" style="border-top: 1px solid var(--clippy-border); margin-top: 3rem; padding-top: 2rem; padding-bottom: 2.5rem; flex-wrap: wrap; gap: 1.5rem;">
-        <div>
+    <div class="clippy-header-bar">
+        <header class="clippy-header">
             <a href="/" class="clippy-brand">
                 <span class="clippy-brand-icon">
                     <i class="fa-solid fa-paperclip"></i>
                 </span>
-                <span>clippy<span class="dot-be">.be</span></span>
+                <span>clippy<span class="dot-be">.io</span></span>
             </a>
-            <p style="font-size: 0.8rem; color: var(--clippy-muted); max-width: 300px; margin-top: 0.5rem;">
-                Enterprise URL shortener & QR code generator powered by .NET 10, Snowflake Base62 IDs, and stampede-protected caching.
-            </p>
-        </div>
-        <div style="font-size: 0.8rem; color: var(--clippy-muted);">
-            <strong>All rights reserved</strong> &bull; Copyright &copy; @DateTime.UtcNow.Year Clippy Enterprise
+
+            <nav class="clippy-nav" aria-label="Primary Navigation">
+                <a href="/" class="clippy-nav-item">Shortener</a>
+                <a href="/#features" class="clippy-nav-item">Features</a>
+                <a href="/dashboard" class="clippy-nav-item">
+                    <i class="fa-solid fa-lock" style="font-size: 0.72rem; color: var(--clippy-green-text);"></i> My Links
+                </a>
+                <a href="/mailbox" class="clippy-nav-item">
+                    <i class="fa-regular fa-envelope"></i> Email Inbox
+                    @{
+                        var unread = EmailService.GetUnreadCount();
+                    }
+                    @if (unread > 0)
+                    {
+                        <span class="nav-unread-badge">@unread</span>
+                    }
+                </a>
+            </nav>
+
+            <div class="clippy-header-actions">
+                <AuthorizeView>
+                    <Authorized>
+                        @{
+                            var rawName = context.User.Identity?.Name ?? "User";
+                            var shortName = rawName.Contains('@') ? rawName.Split('@')[0] : rawName;
+                            var initial = string.IsNullOrWhiteSpace(shortName) ? "U" : shortName[..1].ToUpperInvariant();
+                        }
+                        <a href="/Account/Manage" class="clippy-user-pill" title="Account Security, Passkeys & 2FA (@rawName)">
+                            <span class="clippy-user-avatar">@initial</span>
+                            <span class="clippy-user-name">@shortName</span>
+                        </a>
+                        <a href="/dashboard" class="btn-clippy-green" style="padding: 0.55rem 1.15rem; font-size: 0.82rem;">
+                            <i class="fa-solid fa-bolt"></i> Workspace
+                        </a>
+                        <form action="Account/Logout" method="post" style="margin: 0; display: inline-flex;">
+                            <AntiforgeryToken />
+                            <input type="hidden" name="ReturnUrl" value="" />
+                            <button type="submit" class="btn-clippy-outline" style="padding: 0.52rem 1rem; font-size: 0.82rem;" title="Sign out of Clippy">
+                                <i class="fa-solid fa-arrow-right-from-bracket"></i> <span>Sign Out</span>
+                            </button>
+                        </form>
+                    </Authorized>
+                    <NotAuthorized>
+                        <a href="/Account/Login" class="btn-clippy-outline" style="padding: 0.55rem 1.2rem; font-size: 0.84rem;">
+                            <i class="fa-solid fa-arrow-right-to-bracket"></i> <span>Sign In</span>
+                        </a>
+                        <a href="/Account/Register" class="btn-clippy-dark" style="padding: 0.58rem 1.3rem; font-size: 0.84rem;">
+                            <span>Get Started Free</span> <i class="fa-solid fa-arrow-right" style="font-size: 0.72rem;"></i>
+                        </a>
+                    </NotAuthorized>
+                </AuthorizeView>
+            </div>
+        </header>
+    </div>
+
+    <main style="flex: 1;">
+        @Body
+    </main>
+
+    <footer class="clippy-footer-wrap">
+        <div class="clippy-header" style="padding-top: 2.25rem; padding-bottom: 2.5rem; flex-wrap: wrap; gap: 1.5rem;">
+            <div>
+                <a href="/" class="clippy-brand">
+                    <span class="clippy-brand-icon">
+                        <i class="fa-solid fa-paperclip"></i>
+                    </span>
+                    <span>clippy<span class="dot-be">.io</span></span>
+                </a>
+                <p style="font-size: 0.8rem; color: var(--clippy-muted); max-width: 380px; margin-top: 0.5rem; margin-bottom: 0;">
+                    Enterprise URL shortener &amp; QR code platform powered by .NET 10, 64-bit Snowflake Base62 IDs, strict owner-only link isolation, and Coursera-grade HTML email verification.
+                </p>
+            </div>
+            <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; font-size: 0.82rem; font-weight: 600;">
+                <a href="/dashboard" style="color: var(--clippy-text); text-decoration: none;">My Links</a>
+                <a href="/mailbox" style="color: var(--clippy-text); text-decoration: none;">Live Email Inbox</a>
+                <a href="/Account/Login" style="color: var(--clippy-text); text-decoration: none;">Sign In</a>
+                <a href="/Account/Register" style="color: var(--clippy-text); text-decoration: none;">Register</a>
+                <a href="/Account/Manage" style="color: var(--clippy-text); text-decoration: none;">Security &amp; 2FA</a>
+                <a href="/healthz" target="_blank" style="color: var(--clippy-green-text); text-decoration: none;">
+                    <i class="fa-solid fa-heart-pulse"></i> System Health
+                </a>
+            </div>
+            <div style="font-size: 0.8rem; color: var(--clippy-muted);">
+                <strong>All rights reserved</strong> &bull; &copy; @DateTime.UtcNow.Year Clippy Enterprise
+            </div>
         </div>
     </footer>
 </div>

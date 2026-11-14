@@ -1,4 +1,4 @@
-﻿@page "/"
+@page "/"
 @rendermode InteractiveServer
 @using System.Security.Claims
 @using Clippy.Client.Models
@@ -7,59 +7,137 @@
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthStateProvider
 @inject IJSRuntime JS
-<PageTitle>Clippy - URL Shortener and QR Code Generator</PageTitle>
+
+<PageTitle>Clippy - Enterprise URL Shortener &amp; QR Code Generator</PageTitle>
+
 <section class="hero-section">
     <div class="hero-grid">
         <div>
             <div class="eyebrow-pill">
-                <i class="fa-solid fa-wand-magic-sparkles"></i> Let's make with simply one click
+                <i class="fa-solid fa-shield-halved"></i> Strict Owner-Only Link Isolation &bull; 64-Bit Snowflake Base62
             </div>
             <h1 class="hero-heading">
                 Url shortener and<br />QR code generator
             </h1>
             <p class="hero-description">
-                Transform everything into dynamic links and QR codes that lead more people to what matters in just one place, free.
+                Transform long URLs into branded, owner-protected short links and vector SVG QR codes with sub-millisecond redirects and GDPR-safe click telemetry.
             </p>
         </div>
         <div class="hero-portrait-card">
             <img src="https://images.unsplash.com/photo-1779094528783-ad61dca45b7f?q=80&w=687&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=NHwxMjA3fDA%3D?auto=format&fit=crop&w=900&q=80" alt="Happy Creator using Clippy" />
         </div>
     </div>
+
+    <!-- TinyURL-Style Floating Shortener Bar with Authorization & Creative Skeleton Pipeline -->
     <div class="shortener-floating-bar">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.65rem; padding: 0 0.5rem;">
+            @if (isAuthenticated)
+            {
+                <span style="font-size: 0.76rem; font-weight: 700; color: var(--clippy-green-text); display: inline-flex; align-items: center; gap: 0.4rem;">
+                    <i class="fa-solid fa-lock"></i> Authenticated Workspace: Links you shorten belong exclusively to <strong>@currentUserName</strong>
+                </span>
+                <a href="/dashboard" style="font-size: 0.76rem; font-weight: 700; color: var(--clippy-dark); text-decoration: underline;">
+                    Manage all my links (@myLinks.Count) &rarr;
+                </a>
+            }
+            else
+            {
+                <span style="font-size: 0.76rem; font-weight: 700; color: var(--clippy-muted); display: inline-flex; align-items: center; gap: 0.4rem;">
+                    <i class="fa-solid fa-user-lock" style="color: var(--clippy-green-text);"></i> Protected Shortening: Sign in required so only you can view, edit, or delete your links
+                </span>
+                <a href="/Account/Login" style="font-size: 0.76rem; font-weight: 700; color: var(--clippy-dark); text-decoration: underline;">
+                    Sign In / Email OTP &rarr;
+                </a>
+            }
+        </div>
+
         <div class="shortener-form-row">
             <div class="shortener-input-cell">
-                <label><i class="fa-solid fa-link"></i> Your URL</label>
+                <label><i class="fa-solid fa-link"></i> Destination URL</label>
                 <input type="url"
                        placeholder="https://www.yourdomain.com/very-long-article-path"
                        @bind="requestModel.DestinationUrl"
                        @bind:event="oninput" />
             </div>
             <div class="shortener-input-cell no-border">
-                <label><i class="fa-solid fa-pen-nib"></i> Customize URL</label>
+                <label><i class="fa-solid fa-pen-nib"></i> Custom Alias (Optional)</label>
                 <input type="text"
-                       placeholder="Add alias (optional)"
+                       placeholder="e.g. launch-2027"
                        @bind="requestModel.CustomAlias" />
             </div>
             <button class="btn-clippy-green" @onclick="CreateShortLinkAsync" disabled="@isSubmitting">
                 @if (isSubmitting)
                 {
-                    <i class="fa-solid fa-spinner fa-spin"></i> <span>Shortening...</span>
+                    <i class="fa-solid fa-spinner fa-spin"></i> <span>Securing Link...</span>
+                }
+                else if (!isAuthenticated)
+                {
+                    <i class="fa-solid fa-lock"></i> <span>Sign In &amp; Shorten</span>
                 }
                 else
                 {
-                    <span>Shorten URL</span>
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> <span>Shorten URL</span>
                 }
             </button>
         </div>
+
+        @if (showAuthPromptBanner)
+        {
+            <div style="margin-top: 1rem; padding: 1.15rem 1.35rem; border-radius: 1rem; background: var(--clippy-cream); border: 1px solid var(--clippy-border); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem;">
+                <div>
+                    <div style="font-weight: 800; font-size: 0.92rem; color: var(--clippy-dark); margin-bottom: 0.2rem;">
+                        <i class="fa-solid fa-shield-halved" style="color: var(--clippy-green-text);"></i> Authorization Required to Create &amp; Own Links
+                    </div>
+                    <div style="font-size: 0.82rem; color: var(--clippy-muted);">
+                        To prevent unauthorized users from altering or deleting links, Clippy binds every shortened URL to your verified identity.
+                    </div>
+                </div>
+                <div style="display: flex; gap: 0.6rem; flex-wrap: wrap;">
+                    <a href="/Account/Login" class="btn-clippy-dark" style="padding: 0.5rem 1.1rem; font-size: 0.82rem;">
+                        <i class="fa-solid fa-arrow-right-to-bracket"></i> Sign In (Password / Passkey / OTP)
+                    </a>
+                    <a href="/Account/Register" class="btn-clippy-green" style="padding: 0.5rem 1.1rem; font-size: 0.82rem;">
+                        <i class="fa-solid fa-user-plus"></i> Create Free Account
+                    </a>
+                </div>
+            </div>
+        }
+
         @if (!string.IsNullOrWhiteSpace(errorMessage))
         {
             <div style="margin-top: 0.85rem; padding: 0.65rem 1rem; border-radius: 0.75rem; background: #FEE2E2; color: #991B1B; font-size: 0.85rem; font-weight: 600;">
                 <i class="fa-solid fa-triangle-exclamation me-1"></i> @errorMessage
             </div>
         }
-        @if (latestCreatedLink is not null)
+
+        <!-- Creative TinyURL-Style 3-Stage Shimmer Skeleton Pipeline during Link Creation -->
+        @if (isSubmitting)
         {
             <div class="shortener-result-banner">
+                <div style="display: flex; align-items: center; gap: 1rem; flex: 1; min-width: 260px;">
+                    <div class="qr-skeleton-matrix">
+                        <span></span><span></span><span></span>
+                        <span></span><span></span><span></span>
+                        <span></span><span></span><span></span>
+                    </div>
+                    <div style="flex: 1;">
+                        <div style="font-size: 0.75rem; font-weight: 800; color: var(--clippy-green-text); text-transform: uppercase; margin-bottom: 0.35rem;">
+                            <i class="fa-solid fa-circle-notch fa-spin me-1"></i> @creationStageLabel
+                        </div>
+                        <div class="skeleton skeleton-pill" style="width: 240px; height: 1.9rem; margin-bottom: 0.35rem;"></div>
+                        <div class="skeleton skeleton-line" style="width: 170px; height: 0.7rem; margin-bottom: 0;"></div>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 0.6rem;">
+                    <span class="skeleton skeleton-btn" style="width: 105px; height: 2.3rem;"></span>
+                    <span class="skeleton skeleton-btn" style="width: 105px; height: 2.3rem;"></span>
+                    <span class="skeleton skeleton-btn" style="width: 110px; height: 2.3rem;"></span>
+                </div>
+            </div>
+        }
+        else if (latestCreatedLink is not null)
+        {
+            <div class="shortener-result-banner clippy-fade-in">
                 <div style="display: flex; align-items: center; gap: 0.85rem; flex-wrap: wrap;">
                     <span class="shortened-link-pill">
                         <i class="fa-solid fa-bolt" style="color: var(--clippy-green-text);"></i>
@@ -68,10 +146,10 @@
                         </a>
                     </span>
                     <span style="font-size: 0.8rem; color: var(--clippy-muted);">
-                        Snowflake ID: <code>#@latestCreatedLink.Id</code>
+                        Snowflake ID: <code>#@latestCreatedLink.Id</code> &bull; <strong style="color: var(--clippy-green-text);">Owner Locked</strong>
                     </span>
                 </div>
-                <div style="display: flex; align-items: center; gap: 0.6rem;">
+                <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
                     <button class="btn-clippy-outline" @onclick="() => CopyToClipboardAsync(latestCreatedLink.ShortenedFullUrl)">
                         <i class="fa-regular @(copiedRecently ? "fa-circle-check" : "fa-copy")"></i>
                         @(copiedRecently ? "Copied!" : "Copy URL")
@@ -80,13 +158,125 @@
                         <i class="fa-solid fa-qrcode"></i> QR Code
                     </button>
                     <a href="/dashboard?code=@(latestCreatedLink.CustomAlias ?? latestCreatedLink.ShortCode)" class="btn-clippy-outline">
-                        <i class="fa-solid fa-chart-line"></i> Analytics
+                        <i class="fa-solid fa-chart-line"></i> Analytics &amp; Edit
                     </a>
                 </div>
             </div>
         }
     </div>
+
+    <!-- Owner-Scoped Links Showcase with Realistic Shimmer Skeleton Loading -->
+    <div style="margin-top: 2.25rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.9rem; flex-wrap: wrap; gap: 0.5rem;">
+            <span style="font-size: 0.8rem; font-weight: 800; text-transform: uppercase; color: var(--clippy-muted); letter-spacing: 0.04em;">
+                @if (isAuthenticated)
+                {
+                    <i class="fa-solid fa-user-shield" style="color: var(--clippy-green-text);"></i> <span>Your Private Shortened Links (@myLinks.Count)</span>
+                }
+                else
+                {
+                    <i class="fa-solid fa-lock" style="color: var(--clippy-green-text);"></i> <span>Private Link Workspace Preview</span>
+                }
+            </span>
+            <div style="display: flex; align-items: center; gap: 0.85rem;">
+                @if (isAuthenticated)
+                {
+                    <button class="btn-clippy-outline" style="padding: 0.28rem 0.75rem; font-size: 0.74rem;" @onclick="LoadMyLinksWithSkeletonAsync" disabled="@isLoadingRecent">
+                        <i class="fa-solid fa-arrows-rotate @(isLoadingRecent ? "fa-spin" : "")"></i> Refresh
+                    </button>
+                }
+                <a href="/dashboard" style="font-size: 0.8rem; font-weight: 700; color: var(--clippy-dark); text-decoration: none;">
+                    Open Link Command Center &rarr;
+                </a>
+            </div>
+        </div>
+
+        @if (isLoadingRecent)
+        {
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.1rem;">
+                @for (int s = 0; s < 3; s++)
+                {
+                    <div class="skeleton-card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.85rem;">
+                            <span class="skeleton skeleton-pill" style="width: 48%; height: 1.4rem;"></span>
+                            <span class="skeleton skeleton-pill" style="width: 24%; height: 1.25rem;"></span>
+                        </div>
+                        <div class="skeleton skeleton-line" style="width: 90%; height: 0.8rem; margin-bottom: 0.45rem;"></div>
+                        <div class="skeleton skeleton-line" style="width: 60%; height: 0.75rem; margin-bottom: 1rem;"></div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 0.65rem; border-top: 1px solid var(--clippy-border);">
+                            <span class="skeleton skeleton-btn" style="width: 72px; height: 1.75rem;"></span>
+                            <span class="skeleton skeleton-btn" style="width: 95px; height: 1.75rem;"></span>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else if (!isAuthenticated)
+        {
+            <div class="skeleton-card" style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1.25rem; background: var(--clippy-white);">
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <div style="width: 3rem; height: 3rem; border-radius: 1rem; background: var(--clippy-green-soft); color: var(--clippy-green-text); display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0;">
+                        <i class="fa-solid fa-user-lock"></i>
+                    </div>
+                    <div>
+                        <h4 style="margin: 0; font-size: 1rem; font-weight: 800; color: var(--clippy-dark);">
+                            Your links are strictly private to your account
+                        </h4>
+                        <p style="margin: 0.2rem 0 0 0; font-size: 0.84rem; color: var(--clippy-muted);">
+                            Sign in to shorten URLs, customize branded aliases, pause/resume redirects, and inspect live click telemetry.
+                        </p>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 0.65rem; flex-wrap: wrap;">
+                    <a href="/Account/Login" class="btn-clippy-dark" style="padding: 0.55rem 1.15rem; font-size: 0.82rem;">
+                        <i class="fa-solid fa-key"></i> Sign In to View My Links
+                    </a>
+                    <a href="/Account/Register" class="btn-clippy-green" style="padding: 0.55rem 1.15rem; font-size: 0.82rem;">
+                        Get Started Free
+                    </a>
+                </div>
+            </div>
+        }
+        else if (!myLinks.Any())
+        {
+            <div class="skeleton-card" style="text-align: center; padding: 2rem;">
+                <p style="margin: 0; font-weight: 700; color: var(--clippy-dark);">You haven't created any shortened links yet.</p>
+                <p style="margin: 0.25rem 0 0 0; font-size: 0.82rem; color: var(--clippy-muted);">Paste a URL in the bar above to generate your first owner-locked Snowflake link and vector QR code.</p>
+            </div>
+        }
+        else
+        {
+            <div class="clippy-fade-in" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.1rem;">
+                @foreach (var item in myLinks)
+                {
+                    var routeCode = item.CustomAlias ?? item.ShortCode;
+                    <div class="skeleton-card" style="display: flex; flex-direction: column; justify-content: space-between; gap: 0.75rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <a href="@item.ShortenedFullUrl" target="_blank" style="font-family: var(--font-mono); font-weight: 700; font-size: 0.92rem; color: var(--clippy-dark); text-decoration: none;">
+                                /@routeCode <i class="fa-solid fa-arrow-up-right-from-square" style="font-size: 0.7rem; color: var(--clippy-green-text);"></i>
+                            </a>
+                            <span style="background: var(--clippy-green-soft); color: var(--clippy-green-text); font-family: var(--font-mono); font-size: 0.72rem; font-weight: 700; padding: 0.2rem 0.55rem; border-radius: 9999px;">
+                                @item.TotalClicks clicks
+                            </span>
+                        </div>
+                        <div style="font-size: 0.78rem; color: var(--clippy-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="@item.DestinationUrl">
+                            @item.DestinationUrl
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 0.5rem; border-top: 1px solid var(--clippy-border);">
+                            <button class="btn-clippy-outline" style="padding: 0.25rem 0.65rem; font-size: 0.74rem;" @onclick="() => selectedQrItem = item">
+                                <i class="fa-solid fa-qrcode"></i> QR Code
+                            </button>
+                            <a href="/dashboard?code=@routeCode" style="font-size: 0.75rem; font-weight: 700; color: var(--clippy-dark); text-decoration: none;">
+                                Edit &amp; Analytics &rarr;
+                            </a>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
 </section>
+
 <section class="white-showcase-sheet" id="customize">
     <div class="zig-zag-row">
         <div class="media-frame">
@@ -94,38 +284,51 @@
             <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=800&q=80" alt="Customize URLs" />
             <div class="glass-url-overlay">
                 <i class="fa-solid fa-link" style="color: var(--clippy-green);"></i>
-                <span>clippy.be/<strong>launch-2027</strong></span>
+                <span>clippy.io/<strong>launch-2027</strong></span>
             </div>
         </div>
         <div class="zig-zag-copy">
-            <h2>Customize URLs<br /><strong>of your way</strong></h2>
+            <h2>Customize &amp; Edit URLs<br /><strong>with strict ownership</strong></h2>
             <p>
-                Replace cryptic, fragile query strings with memorable branded aliases backed by our 64-bit Snowflake Base62 generator and instant cache-stampede protection.
+                Every shortened URL is cryptographically bound to your authenticated user ID. Only you can edit its custom alias, change its destination URL, pause redirects, or view its click telemetry.
             </p>
-            <a href="/dashboard" class="btn-clippy-dark">Shorten URL</a>
+            <a href="/dashboard" class="btn-clippy-dark">Open My Link Workspace</a>
         </div>
     </div>
     <div class="zig-zag-row">
         <div class="zig-zag-copy">
             <div class="eyebrow-pill">
-                <i class="fa-solid fa-qrcode"></i> Instant Vector QR Codes
+                <i class="fa-solid fa-envelope-circle-check"></i> Coursera-Style Transactional Emails &amp; QR Engine
             </div>
-            <h2>Customize URLs<br /><strong>of your way</strong></h2>
+            <h2>Enterprise Identity<br /><strong>&amp; Vector QR Engine</strong></h2>
             <p>
-                Every shortened URL automatically generates a high-resolution vector SVG QR code ready for print, packaging, or digital campaigns with real-time scan telemetry.
+                Verify accounts and sign in passwordlessly with Coursera-grade HTML verification emails, 6-digit HMAC OTP codes, FIDO2 Passkeys, and downloadable SVG QR codes.
             </p>
-            <a href="/auth/login" class="btn-clippy-dark">Shorten URL</a>
+            <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                <AuthorizeView>
+                    <Authorized>
+                        <a href="/Account/Manage" class="btn-clippy-dark">Account &amp; Security Settings</a>
+                    </Authorized>
+                    <NotAuthorized>
+                        <a href="/Account/Login" class="btn-clippy-dark">Sign In to Workspace</a>
+                    </NotAuthorized>
+                </AuthorizeView>
+                <a href="/mailbox" class="btn-clippy-outline">
+                    <i class="fa-solid fa-inbox"></i> Open Live Email Inbox
+                </a>
+            </div>
         </div>
         <div class="media-frame">
             <div class="media-green-Accent right"></div>
             <img src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=800&q=80" alt="Developer Analytics" />
             <div class="glass-url-overlay">
                 <i class="fa-solid fa-shield-halved" style="color: var(--clippy-green);"></i>
-                <span>SSRF & Phishing Guard Active</span>
+                <span>Owner-Only Authorization Active</span>
             </div>
         </div>
     </div>
 </section>
+
 <section class="feature-split-section" id="features">
     <div class="feature-cream-box">
         <div>
@@ -136,21 +339,21 @@
                 <div class="feature-icon-badge"><i class="fa-solid fa-bolt"></i></div>
                 <div>
                     <strong style="display: block; font-size: 0.95rem;">Stampede-Protected RAM Cache</strong>
-                    <span style="font-size: 0.82rem; color: var(--clippy-muted);">Keyed SemaphoreSlim locks prevent viral traffic spikes from overwhelming SQL Server.</span>
+                    <span style="font-size: 0.82rem; color: var(--clippy-muted);">Single-Flight Lazy&lt;Task&gt; + SemaphoreSlim locks prevent viral traffic spikes from overwhelming SQL Server.</span>
                 </div>
             </div>
             <div class="feature-list-item">
-                <div class="feature-icon-badge"><i class="fa-solid fa-chart-simple"></i></div>
+                <div class="feature-icon-badge"><i class="fa-solid fa-lock"></i></div>
                 <div>
-                    <strong style="display: block; font-size: 0.95rem;">Non-Blocking Channel Telemetry</strong>
-                    <span style="font-size: 0.82rem; color: var(--clippy-muted);">Redirects complete in sub-milliseconds while background workers batch-insert GDPR-safe click logs.</span>
+                    <strong style="display: block; font-size: 0.95rem;">Strict Tenant &amp; Link Ownership</strong>
+                    <span style="font-size: 0.82rem; color: var(--clippy-muted);">Only the authenticated creator of a link can edit its alias, update its destination, toggle status, or delete it.</span>
                 </div>
             </div>
             <div class="feature-list-item" style="margin-bottom: 0;">
-                <div class="feature-icon-badge"><i class="fa-solid fa-user-shield"></i></div>
+                <div class="feature-icon-badge"><i class="fa-solid fa-envelope-open-text"></i></div>
                 <div>
-                    <strong style="display: block; font-size: 0.95rem;">OAuth 2.0, OIDC & HMAC OTP</strong>
-                    <span style="font-size: 0.82rem; color: var(--clippy-muted);">Sign in with Google, Meta, or step-up 6-digit OTP protected by Fixed-Window IP rate limiters.</span>
+                    <strong style="display: block; font-size: 0.95rem;">Coursera-Style HTML Email &amp; Passkey Auth</strong>
+                    <span style="font-size: 0.82rem; color: var(--clippy-muted);">Real SMTP delivery + built-in Live Mailbox for account verification, password recovery, and 6-digit OTP login.</span>
                 </div>
             </div>
         </div>
@@ -174,6 +377,7 @@
         </div>
     </div>
 </section>
+
 <section class="faq-section" id="faq">
     <h2 style="font-size: 2rem; font-weight: 800; margin-bottom: 1.75rem;">Frequently asked questions</h2>
     @for (int i = 0; i < faqItems.Length; i++)
@@ -195,6 +399,7 @@
         </div>
     }
 </section>
+
 <section style="padding: 0 1.5rem;">
     <div class="dark-cta-banner">
         <div style="display: flex; align-items: center; gap: 1rem;">
@@ -202,15 +407,33 @@
                 <i class="fa-regular fa-comments" style="color: var(--clippy-green);"></i>
             </div>
             <div>
-                <h4 style="margin: 0; font-size: 1.15rem; font-weight: 700;">Ready to manage your links & live click telemetry?</h4>
-                <p style="margin: 0.2rem 0 0 0; font-size: 0.85rem; color: #A0A7B4;">Sign in with Google, Meta, or passwordless 6-digit OTP in seconds.</p>
+                <h4 style="margin: 0; font-size: 1.15rem; font-weight: 700;">Ready to manage your private links &amp; live click telemetry?</h4>
+                <p style="margin: 0.2rem 0 0 0; font-size: 0.85rem; color: #A0A7B4;">Sign in with Passkeys, Google, or Coursera-style 6-digit Email OTP in seconds.</p>
             </div>
         </div>
-        <a href="/auth/login" class="btn-clippy-outline" style="border: none;">
-            Get Started Free
-        </a>
+        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+            <AuthorizeView>
+                <Authorized>
+                    <a href="/dashboard" class="btn-clippy-green">
+                        Open My Workspace
+                    </a>
+                    <a href="/Account/Manage" class="btn-clippy-outline" style="border: none;">
+                        Account Settings
+                    </a>
+                </Authorized>
+                <NotAuthorized>
+                    <a href="/Account/Register" class="btn-clippy-green">
+                        Create Free Account
+                    </a>
+                    <a href="/Account/Login" class="btn-clippy-outline" style="border: none;">
+                        Sign In
+                    </a>
+                </NotAuthorized>
+            </AuthorizeView>
+        </div>
     </div>
 </section>
+
 @if (selectedQrItem is not null)
 {
     <div class="clippy-modal-backdrop" @onclick="() => selectedQrItem = null">
@@ -236,42 +459,106 @@
         </div>
     </div>
 }
-@code{
+
+@code {
     private CreateShortUrlRequest requestModel = new();
     private ShortUrlDto? latestCreatedLink;
     private ShortUrlDto? selectedQrItem;
+    private List<ShortUrlDto> myLinks = [];
+    private bool isLoadingRecent = true;
     private bool isSubmitting;
     private bool copiedRecently;
+    private bool isAuthenticated;
+    private bool showAuthPromptBanner;
+    private string? currentUserId;
+    private string? currentUserName;
     private string? errorMessage;
+    private string creationStageLabel = "Scanning Destination URL for SSRF & Phishing...";
     private int openFaqIndex = 0;
+
     private readonly (string Question, string Answer)[] faqItems =
     [
-        ("How does Clippy avoid database collisions when shortening URLs?",
-         "Clippy uses an in-memory 64-bit Snowflake ID generator combined with Base62 encoding. Every link receives a mathematically unique 64-bit integer without needing to check SQL Server for random string collisions."),
+        ("Can another user alter, pause, or delete my shortened URLs?",
+         "Never. Clippy enforces strict owner-only authorization at both the API and service layers. Every shortened link is bound to your authenticated UserId, and any edit, status toggle, analytics query, or delete operation verifies ownership against your identity."),
+        ("How does Clippy send verification and 6-digit OTP emails?",
+         "Clippy uses a Coursera-grade responsive HTML email engine supporting live TLS SMTP delivery (Gmail, SendGrid, Mailgun, SES) alongside a real-time in-app Live Email Inbox (/mailbox) for instant testing."),
         ("How does Clippy handle viral traffic spikes (Cache Stampedes)?",
-         "When a short link is requested, Clippy checks Layer 1 IMemoryCache first. On a cache miss, a keyed SemaphoreSlim lock ensures only the first request queries SQL Server while concurrent requests wait microseconds for the cache to hydrate."),
-        ("How is visitor privacy protected in Click Analytics?",
-         "Clippy never stores raw IP addresses on disk. Our background analytics worker hashes visitor IPs with a rotating daily salt using SHA-256 to compute unique visitor counts while remaining 100% GDPR-compliant."),
-        ("What happens when a shortened link expires or is flagged as malicious?",
-         "Our UrlSafetyScanner blocks SSRF, localhost, and phishing patterns before saving. If a link expires, Clippy returns an explicit HTTP 410 Gone status code.")
+         "When a short link is requested, Clippy checks Layer 1 IMemoryCache first. On a cache miss, a Single-Flight Lazy<Task> + keyed SemaphoreSlim lock ensures only the first request queries SQL Server while concurrent requests wait microseconds for the cache to hydrate."),
+        ("What happens when I edit a custom alias or destination URL?",
+         "When you update a link in your workspace, Clippy re-scans the destination URL for SSRF/malware, updates SQL Server, and immediately evicts both the old and new codes from the L1 IMemoryCache so redirects update in sub-milliseconds.")
     ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        currentUserId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        isAuthenticated = authState.User.Identity?.IsAuthenticated == true && !string.IsNullOrWhiteSpace(currentUserId);
+        currentUserName = isAuthenticated ? (authState.User.Identity?.Name ?? "Workspace Owner") : null;
+        await LoadMyLinksWithSkeletonAsync();
+    }
+
+    private async Task LoadMyLinksWithSkeletonAsync()
+    {
+        isLoadingRecent = true;
+        StateHasChanged();
+        try
+        {
+            await Task.Delay(360); // Smooth shimmer skeleton hydration
+            if (isAuthenticated && !string.IsNullOrWhiteSpace(currentUserId))
+            {
+                var baseUrl = Navigation.BaseUri.TrimEnd('/');
+                var all = await ShortenerService.GetUserUrlsAsync(currentUserId, baseUrl);
+                myLinks = all.Take(3).ToList();
+            }
+            else
+            {
+                myLinks = [];
+            }
+        }
+        catch
+        {
+            myLinks = [];
+        }
+        finally
+        {
+            isLoadingRecent = false;
+        }
+    }
+
     private async Task CreateShortLinkAsync()
     {
         errorMessage = null;
         copiedRecently = false;
+        showAuthPromptBanner = false;
+
+        if (!isAuthenticated || string.IsNullOrWhiteSpace(currentUserId))
+        {
+            showAuthPromptBanner = true;
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(requestModel.DestinationUrl))
         {
             errorMessage = "Please paste a valid HTTP or HTTPS URL first.";
             return;
         }
+
         isSubmitting = true;
         try
         {
-            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-            var userId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
-            var baseUrl = Navigation.BaseUri.TrimEnd('/');
+            creationStageLabel = "Step 1/3: Scanning URL for SSRF & Phishing vectors...";
+            StateHasChanged();
+            await Task.Delay(220);
 
-            var result = await ShortenerService.CreateShortUrlAsync(requestModel, userId, baseUrl);
+            creationStageLabel = "Step 2/3: Allocating 64-Bit Snowflake ID & Base62 Alias...";
+            StateHasChanged();
+            await Task.Delay(220);
+
+            creationStageLabel = "Step 3/3: Rendering Vector SVG QR Matrix...";
+            StateHasChanged();
+
+            var baseUrl = Navigation.BaseUri.TrimEnd('/');
+            var result = await ShortenerService.CreateShortUrlAsync(requestModel, currentUserId, baseUrl);
             if (!result.Succeeded || result.Data is null)
             {
                 errorMessage = result.ErrorMessage ?? "Could not shorten link.";
@@ -280,6 +567,7 @@
 
             latestCreatedLink = result.Data;
             requestModel = new CreateShortUrlRequest();
+            await LoadMyLinksWithSkeletonAsync();
         }
         catch (Exception ex)
         {
@@ -290,15 +578,18 @@
             isSubmitting = false;
         }
     }
+
     private async Task CopyToClipboardAsync(string text)
     {
         copiedRecently = await JS.InvokeAsync<bool>("clippyInterop.copyText", text);
     }
+
     private async Task DownloadQrSvgAsync(ShortUrlDto item)
     {
         var filename = $"clippy-qr-{item.CustomAlias ?? item.ShortCode}.svg";
         await JS.InvokeVoidAsync("clippyInterop.downloadDataUri", item.QrCodeSvgBase64, filename);
     }
+
     private void ToggleFaq(int index)
     {
         openFaqIndex = openFaqIndex == index ? -1 : index;

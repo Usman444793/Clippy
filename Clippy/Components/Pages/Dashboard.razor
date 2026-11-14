@@ -1,0 +1,731 @@
+@page "/dashboard"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using System.Security.Claims
+@using Clippy.Client.Models
+@using Clippy.Services.Shortening
+@inject IUrlShortenerService ShortenerService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>My Links &amp; Analytics | Clippy Workspace</PageTitle>
+
+<section style="max-width: 1240px; margin: 1.25rem auto 4rem auto; padding: 0 1.5rem;">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 1rem; margin-bottom: 1.5rem;">
+        <div>
+            <div class="eyebrow-pill" style="margin-bottom: 0.45rem;">
+                <i class="fa-solid fa-lock"></i> Private Owner Workspace &bull; Snowflake Base62 &bull; Channel Telemetry
+            </div>
+            <h1 style="font-size: 2.1rem; font-weight: 800; color: var(--clippy-dark); margin: 0;">
+                My Links &amp; Real-Time Telemetry
+            </h1>
+            <p style="color: var(--clippy-muted); font-size: 0.92rem; margin: 0.25rem 0 0 0;">
+                Create, edit, pause, or delete your private shortened links and inspect GDPR-anonymized click analytics.
+            </p>
+        </div>
+        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+            <a href="/mailbox" class="btn-clippy-outline">
+                <i class="fa-solid fa-inbox"></i> Live Email Inbox
+            </a>
+            <a href="/Account/Manage" class="btn-clippy-outline">
+                <i class="fa-solid fa-user-shield"></i> Account &amp; 2FA
+            </a>
+            <button class="btn-clippy-dark" @onclick="LoadLinksAsync" disabled="@isLoading">
+                <i class="fa-solid fa-arrows-rotate @(isLoading ? "fa-spin" : "")"></i> Refresh Workspace
+            </button>
+        </div>
+    </div>
+
+    <!-- KPI Cards with Creative Shimmer Skeleton Loading -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.25rem; margin-bottom: 2rem;">
+        @if (isLoading)
+        {
+            @for (int i = 0; i < 4; i++)
+            {
+                <div class="skeleton-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                        <span class="skeleton skeleton-line" style="width: 48%; height: 0.75rem; margin: 0;"></span>
+                        <span class="skeleton skeleton-pill" style="width: 2rem; height: 2rem; border-radius: 0.65rem;"></span>
+                    </div>
+                    <div class="skeleton skeleton-title" style="width: 55%; height: 2.1rem; margin-bottom: 0.35rem;"></div>
+                    <div class="skeleton skeleton-line" style="width: 70%; height: 0.65rem; margin-bottom: 0;"></div>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="clippy-fade-in" style="background: var(--clippy-white); padding: 1.35rem 1.5rem; border-radius: 1.25rem; border: 1px solid var(--clippy-border);">
+                <span style="font-size: 0.75rem; font-weight: 700; color: var(--clippy-muted); text-transform: uppercase;">
+                    Your Owned Links
+                </span>
+                <div style="font-size: 2rem; font-weight: 800; color: var(--clippy-dark); margin-top: 0.25rem;">@links.Count</div>
+                <div style="font-size: 0.74rem; color: var(--clippy-green-text); font-weight: 600;">
+                    @links.Count(x => x.IsActive) active &bull; @links.Count(x => !x.IsActive) paused
+                </div>
+            </div>
+            <div class="clippy-fade-in" style="background: var(--clippy-white); padding: 1.35rem 1.5rem; border-radius: 1.25rem; border: 1px solid var(--clippy-border);">
+                <span style="font-size: 0.75rem; font-weight: 700; color: var(--clippy-muted); text-transform: uppercase;">Total Redirect Clicks</span>
+                <div style="font-size: 2rem; font-weight: 800; color: var(--clippy-green-text); margin-top: 0.25rem;">@links.Sum(x => x.TotalClicks)</div>
+                <div style="font-size: 0.74rem; color: var(--clippy-muted);">Sub-ms L1 MemoryCache hits</div>
+            </div>
+            <div class="clippy-fade-in" style="background: var(--clippy-white); padding: 1.35rem 1.5rem; border-radius: 1.25rem; border: 1px solid var(--clippy-border);">
+                <span style="font-size: 0.75rem; font-weight: 700; color: var(--clippy-muted); text-transform: uppercase;">Access Control Policy</span>
+                <div style="font-size: 1.05rem; font-weight: 800; color: var(--clippy-dark); margin-top: 0.55rem;">
+                    <i class="fa-solid fa-lock" style="color: var(--clippy-green-text);"></i> Owner-Only Isolation
+                </div>
+                <div style="font-size: 0.74rem; color: var(--clippy-muted); margin-top: 0.2rem;">Protected against cross-user edits</div>
+            </div>
+            <div class="clippy-fade-in" style="background: var(--clippy-white); padding: 1.35rem 1.5rem; border-radius: 1.25rem; border: 1px solid var(--clippy-border);">
+                <span style="font-size: 0.75rem; font-weight: 700; color: var(--clippy-muted); text-transform: uppercase;">Authenticated Owner</span>
+                <div style="font-size: 1.02rem; font-weight: 800; color: var(--clippy-dark); margin-top: 0.55rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                    <i class="fa-solid fa-circle-check" style="color: var(--clippy-green-text);"></i> @currentUserName
+                </div>
+                <div style="font-size: 0.74rem; color: var(--clippy-muted); margin-top: 0.2rem;">Verified Session</div>
+            </div>
+        }
+    </div>
+
+    <!-- TinyURL-Style Create Shortened Link Panel -->
+    <div style="background: var(--clippy-white); border-radius: 1.5rem; padding: 1.5rem; border: 1px solid var(--clippy-border); margin-bottom: 2rem; box-shadow: 0 12px 30px rgba(0,0,0,0.03);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+            <h4 style="font-size: 1rem; font-weight: 800; margin: 0;">
+                <i class="fa-solid fa-wand-magic-sparkles" style="color: var(--clippy-green-text);"></i> Create New Owner-Protected Link
+            </h4>
+            <span style="font-size: 0.75rem; color: var(--clippy-muted);">
+                Automatic SSRF/Phishing inspection &amp; instant Vector SVG QR generation
+            </span>
+        </div>
+        <div class="row g-3 align-items-end">
+            <div class="col-lg-4 col-md-12">
+                <label style="font-size: 0.75rem; font-weight: 700; display: block; margin-bottom: 0.3rem;">Destination URL *</label>
+                <input type="url" class="form-control" placeholder="https://example.com/product-launch" @bind="createModel.DestinationUrl" />
+            </div>
+            <div class="col-lg-3 col-md-4">
+                <label style="font-size: 0.75rem; font-weight: 700; display: block; margin-bottom: 0.3rem;">Custom Alias (Optional)</label>
+                <input type="text" class="form-control" placeholder="summer-sale" @bind="createModel.CustomAlias" />
+            </div>
+            <div class="col-lg-2 col-md-4">
+                <label style="font-size: 0.75rem; font-weight: 700; display: block; margin-bottom: 0.3rem;">Title (Optional)</label>
+                <input type="text" class="form-control" placeholder="Campaign title" @bind="createModel.Title" />
+            </div>
+            <div class="col-lg-2 col-md-4">
+                <label style="font-size: 0.75rem; font-weight: 700; display: block; margin-bottom: 0.3rem;">Expires On</label>
+                <input type="date" class="form-control" @bind="createModel.ExpiresAtUtc" />
+            </div>
+            <div class="col-lg-1 col-md-12 d-grid">
+                <button class="btn-clippy-green" style="padding: 0.72rem 1rem;" @onclick="CreateLinkAsync" disabled="@isCreating" title="Shorten URL">
+                    <i class="fa-solid @(isCreating ? "fa-spinner fa-spin" : "fa-plus")"></i>
+                </button>
+            </div>
+        </div>
+
+        @if (isCreating)
+        {
+            <div style="margin-top: 1rem; padding: 0.85rem 1rem; border-radius: 1rem; background: var(--clippy-cream); display: flex; align-items: center; gap: 1rem;">
+                <div class="qr-skeleton-matrix" style="width: 38px; height: 38px;">
+                    <span></span><span></span><span></span>
+                    <span></span><span></span><span></span>
+                    <span></span><span></span><span></span>
+                </div>
+                <div style="flex: 1;">
+                    <div style="font-size: 0.75rem; font-weight: 800; color: var(--clippy-green-text);">
+                        Scanning URL safety, allocating 64-bit Snowflake ID &amp; generating vector QR...
+                    </div>
+                    <div class="skeleton skeleton-line" style="width: 240px; height: 0.65rem; margin: 0.3rem 0 0 0;"></div>
+                </div>
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(feedbackMessage))
+        {
+            <div style="margin-top: 0.85rem; font-size: 0.84rem; font-weight: 600; color: @(isFeedbackError ? "#991B1B" : "var(--clippy-green-text)");">
+                <i class="fa-solid @(isFeedbackError ? "fa-circle-exclamation" : "fa-circle-check") me-1"></i> @feedbackMessage
+            </div>
+        }
+    </div>
+
+    <!-- Links Table with Shimmer Skeleton Loading & TinyURL-Style Edit/Pause/Delete Actions -->
+    <div style="background: var(--clippy-white); border-radius: 1.5rem; border: 1px solid var(--clippy-border); overflow: hidden; box-shadow: 0 12px 30px rgba(0,0,0,0.03);">
+        <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--clippy-border); display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem;">
+            <div>
+                <h4 style="margin: 0; font-size: 1.05rem; font-weight: 800;">
+                    Your Managed Shortened Links (@FilteredLinks.Count())
+                </h4>
+                <span style="font-size: 0.8rem; color: var(--clippy-muted);">
+                    Only you (@currentUserName) can edit aliases, change target URLs, pause redirects, or delete these links
+                </span>
+            </div>
+            <div style="min-width: 260px;">
+                <input type="search"
+                       class="form-control form-control-sm"
+                       placeholder="Search by alias, title, code, or domain..."
+                       @bind="searchQuery"
+                       @bind:event="oninput" />
+            </div>
+        </div>
+
+        @if (isLoading)
+        {
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead style="background: var(--clippy-cream); font-size: 0.74rem; text-transform: uppercase; color: var(--clippy-muted);">
+                        <tr>
+                            <th class="ps-4 py-3">Short URL &amp; Title</th>
+                            <th>Destination</th>
+                            <th>Clicks</th>
+                            <th>Status</th>
+                            <th>Expires</th>
+                            <th class="text-end pe-4">Owner Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (int r = 0; r < 5; r++)
+                        {
+                            <tr>
+                                <td class="ps-4 py-3">
+                                    <div class="skeleton skeleton-line" style="width: 130px; height: 1rem; margin-bottom: 0.35rem;"></div>
+                                    <div class="skeleton skeleton-line" style="width: 160px; height: 0.65rem; margin-bottom: 0;"></div>
+                                </td>
+                                <td>
+                                    <div class="skeleton skeleton-line" style="width: 230px; height: 0.85rem; margin-bottom: 0;"></div>
+                                </td>
+                                <td>
+                                    <div class="skeleton skeleton-pill" style="width: 85px; height: 1.5rem;"></div>
+                                </td>
+                                <td>
+                                    <div class="skeleton skeleton-pill" style="width: 80px; height: 1.4rem;"></div>
+                                </td>
+                                <td>
+                                    <div class="skeleton skeleton-line" style="width: 75px; height: 0.8rem; margin-bottom: 0;"></div>
+                                </td>
+                                <td class="text-end pe-4">
+                                    <div style="display: inline-flex; gap: 0.4rem;">
+                                        <span class="skeleton skeleton-btn" style="width: 58px; height: 1.85rem;"></span>
+                                        <span class="skeleton skeleton-btn" style="width: 58px; height: 1.85rem;"></span>
+                                        <span class="skeleton skeleton-btn" style="width: 54px; height: 1.85rem;"></span>
+                                        <span class="skeleton skeleton-btn" style="width: 82px; height: 1.85rem;"></span>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else if (!FilteredLinks.Any())
+        {
+            <div style="padding: 3.5rem; text-align: center; color: var(--clippy-muted);">
+                <i class="fa-solid fa-link-slash fa-2x mb-2" style="color: var(--clippy-border);"></i>
+                <p style="margin: 0; font-weight: 700; color: var(--clippy-dark);">No shortened links in your workspace yet.</p>
+                <p style="font-size: 0.84rem; margin-top: 0.25rem;">Use the form above to create your first owner-locked Snowflake Base62 link.</p>
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive clippy-fade-in">
+                <table class="table align-middle mb-0">
+                    <thead style="background: var(--clippy-cream); font-size: 0.74rem; text-transform: uppercase; color: var(--clippy-muted);">
+                        <tr>
+                            <th class="ps-4 py-3">Short URL &amp; Title</th>
+                            <th>Destination</th>
+                            <th>Clicks</th>
+                            <th>Status</th>
+                            <th>Expires</th>
+                            <th class="text-end pe-4">Owner Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in FilteredLinks)
+                        {
+                            var routeCode = item.CustomAlias ?? item.ShortCode;
+                            <tr style="opacity: @(item.IsActive ? "1" : "0.68");">
+                                <td class="ps-4 py-3">
+                                    <a href="@item.ShortenedFullUrl" target="_blank" style="font-family: var(--font-mono); font-weight: 700; color: var(--clippy-dark); text-decoration: none;">
+                                        /@routeCode <i class="fa-solid fa-arrow-up-right-from-square" style="font-size: 0.7rem; color: var(--clippy-green-text);"></i>
+                                    </a>
+                                    <div style="font-size: 0.74rem; color: var(--clippy-muted);">
+                                        @(string.IsNullOrWhiteSpace(item.Title) ? $"Snowflake #{item.Id}" : $"{item.Title} • #{item.Id}")
+                                    </div>
+                                </td>
+                                <td style="max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.84rem; color: var(--clippy-muted);" title="@item.DestinationUrl">
+                                    @item.DestinationUrl
+                                </td>
+                                <td>
+                                    <span style="background: var(--clippy-green-soft); color: var(--clippy-green-text); font-family: var(--font-mono); font-weight: 700; padding: 0.25rem 0.65rem; border-radius: 9999px; font-size: 0.78rem;">
+                                        @item.TotalClicks clicks
+                                    </span>
+                                </td>
+                                <td>
+                                    <button type="button"
+                                            class="badge border"
+                                            style="cursor: pointer; border-radius: 9999px; padding: 0.35rem 0.7rem; background: @(item.IsActive ? "var(--clippy-green-soft)" : "var(--clippy-warning-soft)"); color: @(item.IsActive ? "var(--clippy-green-text)" : "#92400E"); border-color: transparent;"
+                                            title="Click to toggle Active / Paused redirect status"
+                                            @onclick="() => ToggleStatusAsync(item)">
+                                        <i class="fa-solid @(item.IsActive ? "fa-circle-play" : "fa-circle-pause") me-1"></i>
+                                        @(item.IsActive ? "Active" : "Paused")
+                                    </button>
+                                </td>
+                                <td style="font-size: 0.78rem; color: var(--clippy-muted);">
+                                    @(item.ExpiresAtUtc.HasValue ? item.ExpiresAtUtc.Value.ToString("MMM dd, yyyy") : "Never")
+                                </td>
+                                <td class="text-end pe-4">
+                                    <div style="display: inline-flex; gap: 0.4rem; flex-wrap: wrap; justify-content: flex-end;">
+                                        <button class="btn-clippy-outline" style="padding: 0.32rem 0.68rem; font-size: 0.76rem;" title="Copy Short URL" @onclick="() => CopyUrlAsync(item.ShortenedFullUrl)">
+                                            <i class="fa-regular fa-copy"></i> Copy
+                                        </button>
+                                        <button class="btn-clippy-outline" style="padding: 0.32rem 0.68rem; font-size: 0.76rem;" title="Edit Alias, Destination URL or Expiration" @onclick="() => OpenEditModal(item)">
+                                            <i class="fa-solid fa-pen-to-square"></i> Edit
+                                        </button>
+                                        <button class="btn-clippy-outline" style="padding: 0.32rem 0.68rem; font-size: 0.76rem;" title="Vector SVG QR Code" @onclick="() => qrModalItem = item">
+                                            <i class="fa-solid fa-qrcode"></i> QR
+                                        </button>
+                                        <button class="btn-clippy-dark" style="padding: 0.32rem 0.78rem; font-size: 0.76rem;" @onclick="() => OpenAnalyticsAsync(routeCode)">
+                                            <i class="fa-solid fa-chart-column"></i> Analytics
+                                        </button>
+                                        <button class="btn-clippy-danger" style="padding: 0.32rem 0.65rem; font-size: 0.76rem;" title="Delete link permanently" @onclick="() => DeleteLinkAsync(item.Id)">
+                                            <i class="fa-regular fa-trash-can"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</section>
+
+<!-- TinyURL-Style Edit / Customize Link Modal (Owner-Only) -->
+@if (editingItem is not null)
+{
+    <div class="clippy-modal-backdrop" @onclick="CloseEditModal">
+        <div class="clippy-modal-card" style="max-width: 540px; text-align: left;" @onclick:stopPropagation="true">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--clippy-border); padding-bottom: 0.85rem; margin-bottom: 1.15rem;">
+                <div>
+                    <span class="eyebrow-pill" style="margin-bottom: 0.25rem;">
+                        <i class="fa-solid fa-lock"></i> Owner-Protected Link Editor
+                    </span>
+                    <h4 style="margin: 0; font-weight: 800; color: var(--clippy-dark);">
+                        Edit Link /@(editingItem.CustomAlias ?? editingItem.ShortCode)
+                    </h4>
+                </div>
+                <button style="background: none; border: none; font-size: 1.5rem; cursor: pointer;" @onclick="CloseEditModal">&times;</button>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(editModalError))
+            {
+                <div class="alert alert-danger py-2 px-3 mb-3" style="font-size: 0.82rem;">
+                    <i class="fa-solid fa-triangle-exclamation me-1"></i> @editModalError
+                </div>
+            }
+
+            <div class="mb-3">
+                <label class="form-label" style="font-size: 0.78rem; font-weight: 700;">Link Title</label>
+                <input type="text" class="form-control" placeholder="e.g. Q4 Product Launch" @bind="editModel.Title" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label" style="font-size: 0.78rem; font-weight: 700;">Destination URL *</label>
+                <input type="url" class="form-control" @bind="editModel.DestinationUrl" />
+                <div style="font-size: 0.72rem; color: var(--clippy-muted); margin-top: 0.25rem;">
+                    Re-scanned automatically for SSRF &amp; phishing safety; L1 cache is evicted immediately upon save.
+                </div>
+            </div>
+
+            <div class="row g-2 mb-3">
+                <div class="col-md-6">
+                    <label class="form-label" style="font-size: 0.78rem; font-weight: 700;">Custom Alias</label>
+                    <input type="text" class="form-control" placeholder="Leave blank for @editingItem.ShortCode" @bind="editModel.CustomAlias" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" style="font-size: 0.78rem; font-weight: 700;">Expiration Date</label>
+                    <input type="date" class="form-control" @bind="editModel.ExpiresAtUtc" />
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label style="display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; font-weight: 600; cursor: pointer;">
+                    <input type="checkbox" class="form-check-input" @bind="editModel.IsActive" />
+                    <span>Link is Active (Uncheck to pause redirects)</span>
+                </label>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 0.65rem; padding-top: 0.75rem; border-top: 1px solid var(--clippy-border);">
+                <button class="btn-clippy-outline" @onclick="CloseEditModal">Cancel</button>
+                <button class="btn-clippy-green" @onclick="SaveEditedLinkAsync" disabled="@isSavingEdit">
+                    <i class="fa-solid @(isSavingEdit ? "fa-spinner fa-spin" : "fa-floppy-disk")"></i>
+                    @(isSavingEdit ? "Updating..." : "Save Changes & Evict Cache")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Analytics Drawer Modal with Creative Chart Bar Shimmer Skeletons -->
+@if (isAnalyticsModalOpen)
+{
+    <div class="clippy-modal-backdrop" @onclick="CloseAnalyticsModal">
+        <div class="clippy-modal-card" style="max-width: 720px; text-align: left;" @onclick:stopPropagation="true">
+            @if (isLoadingAnalytics || selectedAnalytics is null)
+            {
+                <div style="margin-bottom: 1.25rem;">
+                    <div class="skeleton skeleton-pill" style="width: 170px; margin-bottom: 0.5rem;"></div>
+                    <div class="skeleton skeleton-title" style="width: 250px; margin-bottom: 0.35rem;"></div>
+                    <div class="skeleton skeleton-line" style="width: 340px; height: 0.75rem;"></div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                    <div class="skeleton-card">
+                        <div class="skeleton skeleton-line" style="width: 45%; height: 0.7rem;"></div>
+                        <div class="skeleton skeleton-title" style="width: 40%; height: 1.9rem;"></div>
+                    </div>
+                    <div class="skeleton-card">
+                        <div class="skeleton skeleton-line" style="width: 65%; height: 0.7rem;"></div>
+                        <div class="skeleton skeleton-title" style="width: 40%; height: 1.9rem;"></div>
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.65rem; align-items: end; height: 120px; background: var(--clippy-cream); padding: 1rem; border-radius: 1rem; margin-bottom: 1.5rem;">
+                    @for (int b = 0; b < 7; b++)
+                    {
+                        var h = 25 + (b * 11) % 65;
+                        <div class="skeleton" style="width: 100%; height: @(h)%; border-radius: 0.35rem;"></div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="clippy-fade-in">
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--clippy-border); padding-bottom: 1rem; margin-bottom: 1.25rem;">
+                        <div>
+                            <span class="eyebrow-pill" style="margin-bottom: 0.25rem;">Real-Time Channel Telemetry</span>
+                            <h3 style="margin: 0; font-size: 1.35rem; font-weight: 800;">/@selectedAnalytics.ShortCode</h3>
+                            <div style="font-size: 0.78rem; color: var(--clippy-muted); max-width: 520px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                Target: @selectedAnalytics.DestinationUrl
+                            </div>
+                        </div>
+                        <button style="background: none; border: none; font-size: 1.5rem; cursor: pointer;" @onclick="CloseAnalyticsModal">&times;</button>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                        <div style="background: var(--clippy-cream); padding: 1rem; border-radius: 1rem;">
+                            <span style="font-size: 0.75rem; font-weight: 700; color: var(--clippy-muted);">TOTAL CLICKS</span>
+                            <div style="font-size: 1.75rem; font-weight: 800; color: var(--clippy-dark);">@selectedAnalytics.TotalClicks</div>
+                        </div>
+                        <div style="background: var(--clippy-green-soft); padding: 1rem; border-radius: 1rem;">
+                            <span style="font-size: 0.75rem; font-weight: 700; color: var(--clippy-green-text);">UNIQUE VISITORS (SHA-256 SALTED)</span>
+                            <div style="font-size: 1.75rem; font-weight: 800; color: var(--clippy-green-text);">@selectedAnalytics.UniqueVisitors</div>
+                        </div>
+                    </div>
+                    <h5 style="font-size: 0.85rem; font-weight: 800; text-transform: uppercase; color: var(--clippy-muted); margin-bottom: 0.75rem;">
+                        Last 7 Days Click Volume
+                    </h5>
+                    <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.5rem; align-items: end; height: 120px; background: var(--clippy-cream); padding: 1rem; border-radius: 1rem; margin-bottom: 1.5rem;">
+                        @{
+                            var maxDay = Math.Max(1, selectedAnalytics.Last7DaysClick.Max(x => x.Clicks));
+                        }
+                        @foreach (var day in selectedAnalytics.Last7DaysClick)
+                        {
+                            var heightPct = Math.Max(12, (int)((double)day.Clicks / maxDay * 100));
+                            <div style="display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end;">
+                                <span style="font-size: 0.7rem; font-weight: 700; font-family: var(--font-mono);">@day.Clicks</span>
+                                <div style="width: 100%; max-width: 28px; height: @(heightPct)%; background: var(--clippy-green); border-radius: 0.35rem; margin: 0.25rem 0;"></div>
+                                <span style="font-size: 0.65rem; color: var(--clippy-muted);">@day.DateLabel</span>
+                            </div>
+                        }
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1.25rem;">
+                        <div>
+                            <h6 style="font-size: 0.78rem; font-weight: 800; text-transform: uppercase; color: var(--clippy-muted);">Device Breakdown</h6>
+                            @if (!selectedAnalytics.DeviceBreakdown.Any())
+                            {
+                                <p style="font-size: 0.82rem; color: var(--clippy-muted);">No clicks recorded yet.</p>
+                            }
+                            else
+                            {
+                                @foreach (var dev in selectedAnalytics.DeviceBreakdown)
+                                {
+                                    <div style="display: flex; justify-content: space-between; font-size: 0.84rem; padding: 0.3rem 0; border-bottom: 1px solid var(--clippy-border);">
+                                        <span>@dev.Label</span>
+                                        <strong>@dev.Count (@dev.Percentage%)</strong>
+                                    </div>
+                                }
+                            }
+                        </div>
+                        <div>
+                            <h6 style="font-size: 0.78rem; font-weight: 800; text-transform: uppercase; color: var(--clippy-muted);">Top Countries</h6>
+                            @if (!selectedAnalytics.TopCountries.Any())
+                            {
+                                <p style="font-size: 0.82rem; color: var(--clippy-muted);">No geo telemetry yet.</p>
+                            }
+                            else
+                            {
+                                @foreach (var country in selectedAnalytics.TopCountries)
+                                {
+                                    <div style="display: flex; justify-content: space-between; font-size: 0.84rem; padding: 0.3rem 0; border-bottom: 1px solid var(--clippy-border);">
+                                        <span>@country.Label</span>
+                                        <strong>@country.Count (@country.Percentage%)</strong>
+                                    </div>
+                                }
+                            }
+                        </div>
+                        <div>
+                            <h6 style="font-size: 0.78rem; font-weight: 800; text-transform: uppercase; color: var(--clippy-muted);">Top Referrers</h6>
+                            @if (!selectedAnalytics.TopReferrers.Any())
+                            {
+                                <p style="font-size: 0.82rem; color: var(--clippy-muted);">No referrers recorded yet.</p>
+                            }
+                            else
+                            {
+                                @foreach (var refItem in selectedAnalytics.TopReferrers)
+                                {
+                                    <div style="display: flex; justify-content: space-between; font-size: 0.84rem; padding: 0.3rem 0; border-bottom: 1px solid var(--clippy-border);">
+                                        <span>@refItem.Label</span>
+                                        <strong>@refItem.Count (@refItem.Percentage%)</strong>
+                                    </div>
+                                }
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@if (qrModalItem is not null)
+{
+    <div class="clippy-modal-backdrop" @onclick="() => qrModalItem = null">
+        <div class="clippy-modal-card" @onclick:stopPropagation="true">
+            <h4 style="margin: 0 0 1rem 0; font-weight: 800;">QR Code for /@(qrModalItem.CustomAlias ?? qrModalItem.ShortCode)</h4>
+            <div style="background: var(--clippy-cream); padding: 1.25rem; border-radius: 1rem; margin-bottom: 1rem;">
+                <img src="@qrModalItem.QrCodeSvgBase64" alt="QR Code" style="width: 220px; height: 220px;" />
+            </div>
+            <div style="display: flex; gap: 0.75rem; justify-content: center;">
+                <button class="btn-clippy-green" @onclick="() => DownloadQrAsync(qrModalItem)">
+                    <i class="fa-solid fa-download"></i> Download SVG
+                </button>
+                <button class="btn-clippy-outline" @onclick="() => qrModalItem = null">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "code")]
+    public string? InitialAnalyticsCode { get; set; }
+
+    private List<ShortUrlDto> links = [];
+    private CreateShortUrlRequest createModel = new();
+    private ShortUrlDto? editingItem;
+    private UpdateShortUrlRequest editModel = new();
+    private string? editModalError;
+    private bool isSavingEdit;
+    private UrlAnalyticsSummaryDto? selectedAnalytics;
+    private ShortUrlDto? qrModalItem;
+    private bool isAnalyticsModalOpen;
+    private bool isLoadingAnalytics;
+    private bool isLoading = true;
+    private bool isCreating;
+    private string? feedbackMessage;
+    private bool isFeedbackError;
+    private string? currentUserId;
+    private string? currentUserName;
+    private string searchQuery = string.Empty;
+
+    private IEnumerable<ShortUrlDto> FilteredLinks =>
+        string.IsNullOrWhiteSpace(searchQuery)
+            ? links
+            : links.Where(x =>
+                x.ShortCode.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ||
+                (x.CustomAlias?.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (x.Title?.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                x.DestinationUrl.Contains(searchQuery, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        currentUserId = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        currentUserName = authState.User.Identity?.IsAuthenticated == true ? authState.User.Identity.Name : "Owner";
+        await LoadLinksAsync();
+        if (!string.IsNullOrWhiteSpace(InitialAnalyticsCode))
+        {
+            await OpenAnalyticsAsync(InitialAnalyticsCode);
+        }
+    }
+
+    private async Task LoadLinksAsync()
+    {
+        isLoading = true;
+        StateHasChanged();
+        try
+        {
+            await Task.Delay(360); // Smooth shimmer skeleton hydration
+            var baseUrl = Navigation.BaseUri.TrimEnd('/');
+            if (!string.IsNullOrWhiteSpace(currentUserId))
+            {
+                links = await ShortenerService.GetUserUrlsAsync(currentUserId, baseUrl);
+            }
+            else
+            {
+                links = [];
+            }
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task CreateLinkAsync()
+    {
+        feedbackMessage = null;
+        if (string.IsNullOrWhiteSpace(createModel.DestinationUrl))
+        {
+            feedbackMessage = "Please enter a destination URL.";
+            isFeedbackError = true;
+            return;
+        }
+        isCreating = true;
+        StateHasChanged();
+        try
+        {
+            await Task.Delay(380); // Visible pipeline skeleton
+            var baseUrl = Navigation.BaseUri.TrimEnd('/');
+            var result = await ShortenerService.CreateShortUrlAsync(createModel, currentUserId, baseUrl);
+            if (!result.Succeeded || result.Data is null)
+            {
+                feedbackMessage = result.ErrorMessage ?? "Failed to create link.";
+                isFeedbackError = true;
+                return;
+            }
+            createModel = new CreateShortUrlRequest();
+            feedbackMessage = $"Created owner-protected link {result.Data.ShortenedFullUrl}!";
+            isFeedbackError = false;
+            await LoadLinksAsync();
+        }
+        finally
+        {
+            isCreating = false;
+        }
+    }
+
+    private void OpenEditModal(ShortUrlDto item)
+    {
+        editingItem = item;
+        editModalError = null;
+        editModel = new UpdateShortUrlRequest
+        {
+            DestinationUrl = item.DestinationUrl,
+            CustomAlias = item.CustomAlias,
+            Title = item.Title,
+            ExpiresAtUtc = item.ExpiresAtUtc,
+            IsActive = item.IsActive
+        };
+    }
+
+    private void CloseEditModal()
+    {
+        editingItem = null;
+        editModalError = null;
+    }
+
+    private async Task SaveEditedLinkAsync()
+    {
+        if (editingItem is null || string.IsNullOrWhiteSpace(currentUserId))
+        {
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(editModel.DestinationUrl))
+        {
+            editModalError = "Destination URL cannot be empty.";
+            return;
+        }
+
+        isSavingEdit = true;
+        editModalError = null;
+        try
+        {
+            var baseUrl = Navigation.BaseUri.TrimEnd('/');
+            var result = await ShortenerService.UpdateUrlAsync(editingItem.Id, editModel, currentUserId, baseUrl);
+            if (!result.Succeeded || result.Data is null)
+            {
+                editModalError = result.ErrorMessage ?? "Unable to update link.";
+                return;
+            }
+            feedbackMessage = $"Updated link {result.Data.ShortenedFullUrl} and refreshed L1 cache!";
+            isFeedbackError = false;
+            editingItem = null;
+            await LoadLinksAsync();
+        }
+        finally
+        {
+            isSavingEdit = false;
+        }
+    }
+
+    private async Task ToggleStatusAsync(ShortUrlDto item)
+    {
+        if (string.IsNullOrWhiteSpace(currentUserId)) return;
+        var res = await ShortenerService.ToggleUrlStatusAsync(item.Id, currentUserId);
+        if (res.Succeeded)
+        {
+            feedbackMessage = $"Link /{(item.CustomAlias ?? item.ShortCode)} is now {(res.Data ? "Active" : "Paused")}.";
+            isFeedbackError = false;
+            await LoadLinksAsync();
+        }
+    }
+
+    private async Task OpenAnalyticsAsync(string code)
+    {
+        isAnalyticsModalOpen = true;
+        isLoadingAnalytics = true;
+        selectedAnalytics = null;
+        StateHasChanged();
+        try
+        {
+            await Task.Delay(320); // Smooth analytics chart bar skeleton
+            selectedAnalytics = await ShortenerService.GetAnalyticsAsync(code, currentUserId);
+            if (selectedAnalytics is null)
+            {
+                isAnalyticsModalOpen = false;
+                feedbackMessage = $"No telemetry found for code '/{code}' or you do not own this link.";
+                isFeedbackError = true;
+            }
+        }
+        finally
+        {
+            isLoadingAnalytics = false;
+        }
+    }
+
+    private void CloseAnalyticsModal()
+    {
+        isAnalyticsModalOpen = false;
+        selectedAnalytics = null;
+    }
+
+    private async Task DeleteLinkAsync(long id)
+    {
+        if (string.IsNullOrWhiteSpace(currentUserId)) return;
+        var deleted = await ShortenerService.DeleteUrlAsync(id, currentUserId);
+        if (deleted)
+        {
+            feedbackMessage = $"Link #{id} deleted and evicted from L1 cache.";
+            isFeedbackError = false;
+            await LoadLinksAsync();
+        }
+    }
+
+    private async Task CopyUrlAsync(string url)
+    {
+        await JS.InvokeAsync<bool>("clippyInterop.copyText", url);
+        feedbackMessage = $"Copied {url} to clipboard!";
+        isFeedbackError = false;
+    }
+
+    private async Task DownloadQrAsync(ShortUrlDto item)
+    {
+        var fileName = $"clippy-qr-{item.CustomAlias ?? item.ShortCode}.svg";
+        await JS.InvokeVoidAsync("clippyInterop.downloadDataUri", item.QrCodeSvgBase64, fileName);
+    }
+}

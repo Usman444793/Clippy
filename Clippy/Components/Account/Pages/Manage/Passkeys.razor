@@ -1,4 +1,4 @@
-﻿@page "/Account/Manage/Passkeys"
+@page "/Account/Manage/Passkeys"
 
 @using Clippy.Data
 @using Microsoft.AspNetCore.Identity
@@ -9,54 +9,77 @@
 @inject SignInManager<ApplicationUser> SignInManager
 @inject IdentityRedirectManager RedirectManager
 
-<PageTitle>Manage your passkeys</PageTitle>
+<PageTitle>Hardware Passkeys | Clippy Enterprise</PageTitle>
 
-<h3>Manage your passkeys</h3>
+<div style="margin-bottom: 1.5rem;">
+    <span class="eyebrow-pill" style="margin-bottom: 0.35rem;">
+        <i class="fa-solid fa-fingerprint"></i> FIDO2 / WebAuthn Passwordless Keys
+    </span>
+    <h3 style="font-size: 1.45rem; font-weight: 800; color: var(--clippy-dark); margin: 0;">Manage Your Passkeys</h3>
+    <p style="font-size: 0.85rem; color: var(--clippy-muted); margin: 0.25rem 0 0 0;">
+        Register Touch ID, Face ID, Windows Hello, or YubiKey hardware keys for phishing-resistant sign-in.
+    </p>
+</div>
 
 <StatusMessage />
 
-@if (currentPasskeys is { Count: > 0 })
+@if (currentPasskeys is null)
 {
-    <table class="table">
-        <tbody>
-            @foreach (var passkey in currentPasskeys)
-            {
-                <tr>
-                    <td>@(passkey.Name ?? "Unnamed passkey")</td>
-                    <td>
-                        @{
-                            var credentialId = Base64Url.EncodeToString(passkey.CredentialId);
-                        }
-                        <form @formname="@($"update-passkey-{credentialId}")" @onsubmit="UpdatePasskey" method="post">
-                            <AntiforgeryToken />
-                            <div>
+    <div class="skeleton-card" style="margin-bottom: 1rem;">
+        <div class="skeleton skeleton-line" style="width: 60%; height: 1.2rem; margin-bottom: 0.75rem;"></div>
+        <div class="skeleton skeleton-line" style="width: 40%; height: 1rem;"></div>
+    </div>
+}
+else if (currentPasskeys is { Count: > 0 })
+{
+    <div style="background: var(--clippy-cream); border: 1px solid var(--clippy-border); border-radius: 1.25rem; overflow: hidden; margin-bottom: 1.5rem;">
+        <table class="table align-middle mb-0">
+            <tbody>
+                @foreach (var passkey in currentPasskeys)
+                {
+                    <tr>
+                        <td class="ps-3 py-3" style="font-weight: 700; color: var(--clippy-dark);">
+                            <i class="fa-solid fa-key me-2" style="color: var(--clippy-green-text);"></i>
+                            @(passkey.Name ?? "Unnamed Hardware Passkey")
+                        </td>
+                        <td class="text-end pe-3">
+                            @{
+                                var credentialId = Base64Url.EncodeToString(passkey.CredentialId);
+                            }
+                            <form @formname="@($"update-passkey-{credentialId}")" @onsubmit="UpdatePasskey" method="post" style="display: inline-flex; gap: 0.5rem;">
+                                <AntiforgeryToken />
                                 <input type="hidden" name="CredentialId" value="@credentialId" />
-                                <button type="submit" name="Action" value="rename" class="btn btn-primary" title="Rename this passkey">Rename</button>
-                                <button type="submit" name="Action" value="delete" class="btn btn-danger" title="Remove this passkey from your account">Delete</button>
-                            </div>
-                        </form>
-                    </td>
-                </tr>
-            }
-        </tbody>
-    </table>
+                                <button type="submit" name="Action" value="rename" class="btn-clippy-outline" style="padding: 0.35rem 0.85rem; font-size: 0.78rem;">Rename</button>
+                                <button type="submit" name="Action" value="delete" class="btn-clippy-danger" style="padding: 0.35rem 0.85rem; font-size: 0.78rem;">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
 }
 else
 {
-    <p>No passkeys are registered.</p>
+    <div style="background: var(--clippy-cream); border: 1px dashed var(--clippy-border); border-radius: 1.25rem; padding: 2rem; text-align: center; margin-bottom: 1.5rem;">
+        <i class="fa-solid fa-fingerprint fa-2x mb-2" style="color: var(--clippy-green-text);"></i>
+        <p style="font-weight: 700; margin: 0 0 0.25rem 0;">No WebAuthn Passkeys registered yet</p>
+        <p style="font-size: 0.82rem; color: var(--clippy-muted); margin: 0;">Add a passkey below to sign in instantly using your device biometrics.</p>
+    </div>
 }
 
 <form @formname="add-passkey" @onsubmit="AddPasskey" method="post">
     <AntiforgeryToken />
     @if (currentPasskeys is { Count: >= MaxPasskeyCount })
     {
-        <p class="text-danger">You have reached the maximum number of allowed passkeys. Please delete one before adding a new one.</p>
+        <p class="text-danger">You have reached the maximum number of allowed passkeys.</p>
     }
     else
     {
-        <PasskeySubmit Operation="PasskeyOperation.Create" Name="Input" class="btn btn-primary">Add a new passkey</PasskeySubmit>
+        <PasskeySubmit Operation="PasskeyOperation.Create" Name="Input" class="btn-clippy-green">
+            <i class="fa-solid fa-plus"></i> Register New Hardware Passkey
+        </PasskeySubmit>
     }
-
 </form>
 
 @code {
@@ -130,7 +153,6 @@ else
             return;
         }
 
-        // Immediately prompt the user to enter a name for the credential
         var credentialIdBase64Url = Base64Url.EncodeToString(attestationResult.Passkey.CredentialId);
         RedirectManager.RedirectTo($"Account/Manage/RenamePasskey/{credentialIdBase64Url}");
     }

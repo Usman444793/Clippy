@@ -1,85 +1,179 @@
-﻿@page "/Account/Login"
+@page "/Account/Login"
 
 @using System.ComponentModel.DataAnnotations
 @using Microsoft.AspNetCore.Authentication
 @using Microsoft.AspNetCore.Identity
 @using Clippy.Data
+@using Clippy.Services.Email
+@using Clippy.Services.Security
 
 @inject UserManager<ApplicationUser> UserManager
 @inject SignInManager<ApplicationUser> SignInManager
+@inject IOtpService OtpService
+@inject IClippyEmailService EmailService
 @inject ILogger<Login> Logger
 @inject NavigationManager NavigationManager
 @inject IdentityRedirectManager RedirectManager
 
-<PageTitle>Log in</PageTitle>
+<PageTitle>Sign In | Clippy Enterprise</PageTitle>
 
-<h1>Log in</h1>
-<div class="row">
-    <div class="col-lg-6">
-        <section>
-            <StatusMessage Message="@errorMessage" />
-            <EditForm EditContext="editContext" method="post" OnSubmit="LoginUser" FormName="login">
-                <DataAnnotationsValidator />
-                <h2>Use a local account to log in.</h2>
-                <hr />
-                <ValidationSummary class="text-danger" role="alert" />
-                <div class="form-floating mb-3">
-                    <InputText @bind-Value="Input.Email" id="Input.Email" class="form-control" autocomplete="username webauthn" aria-required="true" placeholder="name@example.com" />
-                    <label for="Input.Email" class="form-label">Email</label>
-                    <ValidationMessage For="() => Input.Email" class="text-danger" />
+<section class="clippy-auth-container">
+    <div class="clippy-auth-card">
+        <div class="clippy-auth-grid">
+            <div>
+                <div class="eyebrow-pill" style="margin-bottom: 0.65rem;">
+                    <i class="fa-solid fa-shield-halved"></i> Zero-Trust Identity &bull; WebAuthn Passkeys &bull; Email OTP
                 </div>
-                <div class="form-floating mb-3">
-                    <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="form-control" autocomplete="current-password" aria-required="true" placeholder="password" />
-                    <label for="Input.Password" class="form-label">Password</label>
-                    <ValidationMessage For="() => Input.Password" class="text-danger" />
+                <h1 style="font-size: 2rem; font-weight: 800; color: var(--clippy-dark); margin: 0 0 0.35rem 0;">
+                    Welcome back to Clippy
+                </h1>
+                <p style="color: var(--clippy-muted); font-size: 0.9rem; margin-bottom: 1.35rem;">
+                    Sign in to access your private link workspace, edit custom aliases, and inspect click telemetry.
+                </p>
+
+                <!-- Progressive Security Readiness Skeleton / Status Strip -->
+                <div class="auth-security-skeleton-strip" style="margin-bottom: 1.25rem;">
+                    <span class="security-chip"><i class="fa-solid fa-lock"></i> Private Link Ownership</span>
+                    <span class="security-chip"><i class="fa-solid fa-fingerprint"></i> FIDO2 Ready</span>
+                    <span class="security-chip"><i class="fa-solid fa-envelope-circle-check"></i> Coursera-Style OTP</span>
                 </div>
-                <div class="checkbox mb-3">
-                    <label class="form-label">
-                        <InputCheckbox @bind-Value="Input.RememberMe" class="darker-border-checkbox form-check-input" />
-                        Remember me
-                    </label>
+
+                <StatusMessage Message="@errorMessage" />
+
+                <EditForm EditContext="editContext" method="post" OnSubmit="LoginUser" FormName="login">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary class="text-danger" role="alert" />
+
+                    <div class="form-floating mb-3">
+                        <InputText @bind-Value="Input.Email" id="Input.Email" class="form-control" autocomplete="username webauthn" aria-required="true" placeholder="name@example.com" />
+                        <label for="Input.Email" class="form-label">Email address</label>
+                        <ValidationMessage For="() => Input.Email" class="text-danger" />
+                    </div>
+
+                    <div class="form-floating mb-3">
+                        <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="form-control" autocomplete="current-password" aria-required="true" placeholder="password" />
+                        <label for="Input.Password" class="form-label">Password</label>
+                        <ValidationMessage For="() => Input.Password" class="text-danger" />
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; font-size: 0.85rem;">
+                        <label class="form-label mb-0" style="display: inline-flex; align-items: center; gap: 0.45rem; cursor: pointer;">
+                            <InputCheckbox @bind-Value="Input.RememberMe" class="darker-border-checkbox form-check-input" style="margin-top: 0;" />
+                            <span>Remember this session</span>
+                        </label>
+                        <a href="Account/ForgotPassword" style="color: var(--clippy-green-text); font-weight: 600; text-decoration: none;">
+                            Forgot password?
+                        </a>
+                    </div>
+
+                    <button type="submit" class="w-100 btn btn-lg btn-primary">
+                        <i class="fa-solid fa-arrow-right-to-bracket me-1"></i> Sign in to Workspace
+                    </button>
+
+                    <div style="display: flex; align-items: center; gap: 0.75rem; margin: 1.25rem 0;">
+                        <hr style="flex: 1; border-color: var(--clippy-border);" />
+                        <span style="font-size: 0.75rem; font-weight: 700; color: var(--clippy-muted); text-transform: uppercase;">Or Hardware Passkey</span>
+                        <hr style="flex: 1; border-color: var(--clippy-border);" />
+                    </div>
+
+                    <div class="d-grid">
+                        <PasskeySubmit Operation="PasskeyOperation.Request" Name="Input.Passkey" EmailName="Input.Email" class="btn-clippy-outline w-100">
+                            <i class="fa-solid fa-fingerprint" style="color: var(--clippy-green-text);"></i> Sign in with a WebAuthn Passkey
+                        </PasskeySubmit>
+                    </div>
+                </EditForm>
+
+                <div style="margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--clippy-border); display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.75rem; font-size: 0.85rem;">
+                    <span>
+                        New to Clippy?
+                        <a href="@(NavigationManager.GetUriWithQueryParameters("Account/Register", new Dictionary<string, object?> { ["ReturnUrl"] = ReturnUrl }))" style="color: var(--clippy-dark); font-weight: 700;">
+                            Create an account
+                        </a>
+                    </span>
+                    <a href="Account/ResendEmailConfirmation" style="color: var(--clippy-muted); text-decoration: none;">
+                        Resend confirmation
+                    </a>
                 </div>
-                <div>
-                    <button type="submit" class="w-100 btn btn-lg btn-primary">Log in</button>
-                </div>
-                <hr />
-                <div class="d-flex flex-column">
-                    <span class="text-secondary mx-auto mt-2">OR</span>
-                    <PasskeySubmit Operation="PasskeyOperation.Request" Name="Input.Passkey" EmailName="Input.Email" class="btn btn-link mx-auto">Log in with a passkey</PasskeySubmit>
-                </div>
-                <hr />
-                <div>
-                    <p>
-                        <a href="Account/ForgotPassword">Forgot your password?</a>
+            </div>
+
+            <div class="clippy-auth-sidebar-panel">
+                <!-- Coursera-Style Passwordless 6-Digit Email OTP Card -->
+                <div style="background: var(--clippy-white); border: 1px solid var(--clippy-border); border-radius: 1.25rem; padding: 1.35rem; margin-bottom: 1.5rem;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                        <span style="font-size: 0.75rem; font-weight: 800; text-transform: uppercase; color: var(--clippy-green-text);">
+                            <i class="fa-solid fa-envelope-open-text me-1"></i> Passwordless Email OTP
+                        </span>
+                        <a href="/mailbox" target="_blank" style="font-size: 0.75rem; font-weight: 700; color: var(--clippy-dark); text-decoration: underline;">
+                            Open Live Inbox &rarr;
+                        </a>
+                    </div>
+                    <h4 style="font-size: 1.05rem; font-weight: 800; color: var(--clippy-dark); margin: 0 0 0.35rem 0;">
+                        Sign in with a 6-digit email code
+                    </h4>
+                    <p style="font-size: 0.8rem; color: var(--clippy-muted); margin-bottom: 1rem;">
+                        Just like Coursera &amp; GitHub: receive a single-use 6-digit HMAC-SHA256 verification code in your email.
                     </p>
-                    <p>
-                        <a href="@(NavigationManager.GetUriWithQueryParameters("Account/Register", new Dictionary<string, object?> { ["ReturnUrl"] = ReturnUrl }))">Register as a new user</a>
-                    </p>
-                    <p>
-                        <a href="Account/ResendEmailConfirmation">Resend email confirmation</a>
-                    </p>
+
+                    @if (!string.IsNullOrWhiteSpace(otpBannerMessage))
+                    {
+                        <div class="alert @(otpIsError ? "alert-danger" : "alert-success") py-2 px-3 mb-3" style="font-size: 0.8rem;">
+                            @otpBannerMessage
+                            @if (!otpIsError)
+                            {
+                                <div class="mt-1">
+                                    <a href="/mailbox?email=@Uri.EscapeDataString(OtpInput.OtpEmail ?? "")" target="_blank" style="font-weight: 800; color: var(--clippy-dark);">
+                                        <i class="fa-solid fa-inbox"></i> View 6-Digit Code in Live Mailbox &rarr;
+                                    </a>
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    <EditForm Model="OtpInput" method="post" OnSubmit="HandleOtpFormAsync" FormName="email-otp-login">
+                        <div class="mb-2">
+                            <InputText @bind-Value="OtpInput.OtpEmail" class="form-control form-control-sm" placeholder="Enter your email address" />
+                        </div>
+                        <div class="input-group input-group-sm mb-2">
+                            <InputText @bind-Value="OtpInput.OtpCode" class="form-control" placeholder="6-digit code (if received)" style="font-family: var(--font-mono); font-weight: 700; letter-spacing: 0.15em;" />
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                            <button type="submit" name="OtpInput.OtpAction" value="send" class="btn-clippy-outline" style="padding: 0.45rem 0.75rem; font-size: 0.78rem;">
+                                <i class="fa-solid fa-paper-plane"></i> Send Code
+                            </button>
+                            <button type="submit" name="OtpInput.OtpAction" value="verify" class="btn-clippy-green" style="padding: 0.45rem 0.75rem; font-size: 0.78rem;">
+                                <i class="fa-solid fa-check-double"></i> Verify &amp; Login
+                            </button>
+                        </div>
+                    </EditForm>
                 </div>
-            </EditForm>
-        </section>
+
+                <h3 style="font-size: 1.08rem; font-weight: 800; color: var(--clippy-dark); margin: 0 0 0.4rem 0;">
+                    Federated SSO Providers
+                </h3>
+                <p style="font-size: 0.82rem; color: var(--clippy-muted); margin-bottom: 1rem;">
+                    Or connect with an enterprise OAuth 2.0 identity provider.
+                </p>
+
+                <ExternalLoginPicker />
+            </div>
+        </div>
     </div>
-    <div class="col-lg-4 col-lg-offset-2">
-        <section>
-            <h3>Use another service to log in.</h3>
-            <hr />
-            <ExternalLoginPicker />
-        </section>
-    </div>
-</div>
+</section>
 
 @code {
     private string? errorMessage;
+    private string? otpBannerMessage;
+    private bool otpIsError;
     private EditContext editContext = default!;
 
     [CascadingParameter]
     private HttpContext HttpContext { get; set; } = default!;
 
-    [SupplyParameterFromForm]
+    [SupplyParameterFromForm(FormName = "login")]
     private InputModel Input { get; set; } = default!;
+
+    [SupplyParameterFromForm(FormName = "email-otp-login")]
+    private OtpFlowModel OtpInput { get; set; } = default!;
 
     [SupplyParameterFromQuery]
     private string? ReturnUrl { get; set; }
@@ -87,14 +181,68 @@
     protected override async Task OnInitializedAsync()
     {
         Input ??= new();
+        OtpInput ??= new();
 
         editContext = new EditContext(Input);
 
         if (HttpMethods.IsGet(HttpContext.Request.Method))
         {
-            // Clear the existing external cookie to ensure a clean login process
             await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
         }
+    }
+
+    private async Task HandleOtpFormAsync()
+    {
+        var email = OtpInput.OtpEmail?.Trim();
+        if (string.IsNullOrWhiteSpace(email) || !email.Contains('@'))
+        {
+            otpBannerMessage = "Please enter a valid email address first.";
+            otpIsError = true;
+            return;
+        }
+
+        if (string.Equals(OtpInput.OtpAction, "send", StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(OtpInput.OtpCode))
+        {
+            var generated = OtpService.GenerateOtp(email, "Login");
+            var dispatched = await EmailService.SendOtpVerificationEmailAsync(email, generated.rawCode, "Login", generated.ExpiresAtUtc);
+            otpIsError = false;
+            otpBannerMessage = dispatched.DeliveredViaSmtp
+                ? $"6-digit code sent via SMTP to {email}! Enter it below."
+                : $"6-digit Coursera-style verification email sent to {email}!";
+            return;
+        }
+
+        var verify = OtpService.VerifyOtp(email, OtpInput.OtpCode.Trim(), "Login");
+        if (!verify.IsValid)
+        {
+            otpIsError = true;
+            otpBannerMessage = $"{verify.Message} ({verify.RemainingAttempts} attempts remaining).";
+            return;
+        }
+
+        var user = await UserManager.FindByEmailAsync(email);
+        if (user is null)
+        {
+            user = new ApplicationUser
+            {
+                UserName = email,
+                Email = email,
+                EmailConfirmed = true,
+                DisplayName = email.Split('@')[0],
+                AuthType = "OTP-Passwordless",
+                IsTwoFactorOtpEnabled = true
+            };
+            var createResult = await UserManager.CreateAsync(user);
+            if (!createResult.Succeeded)
+            {
+                otpIsError = true;
+                otpBannerMessage = string.Join(" ", createResult.Errors.Select(e => e.Description));
+                return;
+            }
+        }
+
+        await SignInManager.SignInAsync(user, isPersistent: true);
+        RedirectManager.RedirectTo(ReturnUrl ?? "/dashboard");
     }
 
     public async Task LoginUser()
@@ -108,32 +256,28 @@
         SignInResult result;
         if (!string.IsNullOrEmpty(Input.Passkey?.CredentialJson))
         {
-            // When performing passkey sign-in, don't perform form validation.
             result = await SignInManager.PasskeySignInAsync(Input.Passkey.CredentialJson);
         }
         else
         {
-            // If doing a password sign-in, validate the form.
             if (!editContext.Validate())
             {
                 return;
             }
 
-            // This doesn't count login failures towards account lockout
-            // To enable password failures to trigger account lockout, set lockoutOnFailure: true
-            result = await SignInManager.PasswordSignInAsync(Input.Email, Input.Password, Input.RememberMe, lockoutOnFailure: false);
+            result = await SignInManager.PasswordSignInAsync(Input.Email, Input.Password, Input.RememberMe, lockoutOnFailure: true);
         }
 
         if (result.Succeeded)
         {
             Logger.LogInformation("User logged in.");
-            RedirectManager.RedirectTo(ReturnUrl);
+            RedirectManager.RedirectTo(ReturnUrl ?? "/dashboard");
         }
         else if (result.RequiresTwoFactor)
         {
             RedirectManager.RedirectTo(
                 "Account/LoginWith2fa",
-                new() { ["returnUrl"] = ReturnUrl, ["rememberMe"] = Input.RememberMe });
+                new() { ["returnUrl"] = ReturnUrl ?? "/dashboard", ["rememberMe"] = Input.RememberMe });
         }
         else if (result.IsLockedOut)
         {
@@ -160,5 +304,12 @@
         public bool RememberMe { get; set; }
 
         public PasskeyInputModel? Passkey { get; set; }
+    }
+
+    private sealed class OtpFlowModel
+    {
+        public string? OtpEmail { get; set; }
+        public string? OtpCode { get; set; }
+        public string? OtpAction { get; set; }
     }
 }

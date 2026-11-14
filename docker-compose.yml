@@ -1,0 +1,41 @@
+services:
+  clippy-sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: clippy-sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "ClippyEnterprise_StrongPassword2026!"
+      MSSQL_PID: "Developer"
+    ports:
+      - "1433:1433"
+    volumes:
+      - clippy_sqldata:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'ClippyEnterprise_StrongPassword2026!' -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  clippy-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: clippy-web
+    depends_on:
+      clippy-sqlserver:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Production"
+      ASPNETCORE_URLS: "http://+:8080"
+      ConnectionStrings__DefaultConnection: "Server=clippy-sqlserver,1433;Database=ClippyEnterpriseDb;User Id=sa;Password=ClippyEnterprise_StrongPassword2026!;TrustServerCertificate=True;MultipleActiveResultSets=true"
+      Security__OtpHmacSecret: "ClippyProductionHmacSecretKey_Minimum32BytesLong!"
+      Security__OtpExpirationMinutes: "5"
+      Security__MaxOtpAttempts: "3"
+      ShortenerConfig__SnowflakeMachineId: "1"
+      ShortenerConfig__DefaultCacheDurationMinutes: "30"
+    restart: unless-stopped
+
+volumes:
+  clippy_sqldata:

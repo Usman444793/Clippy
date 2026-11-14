@@ -1,4 +1,4 @@
-﻿@page "/Account/Register"
+@page "/Account/Register"
 
 @using System.ComponentModel.DataAnnotations
 @using System.Text
@@ -15,44 +15,84 @@
 @inject NavigationManager NavigationManager
 @inject IdentityRedirectManager RedirectManager
 
-<PageTitle>Register</PageTitle>
+<PageTitle>Create Account | Clippy Enterprise</PageTitle>
 
-<h1>Register</h1>
+<section class="clippy-auth-container">
+    <div class="clippy-auth-card">
+        <div class="clippy-auth-grid">
+            <div>
+                <div class="eyebrow-pill" style="margin-bottom: 0.65rem;">
+                    <i class="fa-solid fa-bolt"></i> Instant Provisioning &bull; Snowflake Link Workspace
+                </div>
+                <h1 style="font-size: 2rem; font-weight: 800; color: var(--clippy-dark); margin: 0 0 0.35rem 0;">
+                    Create your Clippy account
+                </h1>
+                <p style="color: var(--clippy-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">
+                    Start creating custom aliases, vector QR codes, and tracking GDPR-compliant click analytics.
+                </p>
 
-<div class="row">
-    <div class="col-lg-6">
-        <StatusMessage Message="@Message" />
-        <EditForm Model="Input" method="post" OnValidSubmit="RegisterUser" FormName="register">
-            <DataAnnotationsValidator />
-            <h2>Create a new account.</h2>
-            <hr />
-            <ValidationSummary class="text-danger" role="alert" />
-            <div class="form-floating mb-3">
-                <InputText @bind-Value="Input.Email" id="Input.Email" class="form-control" autocomplete="username" aria-required="true" placeholder="name@example.com" />
-                <label for="Input.Email">Email</label>
-                <ValidationMessage For="() => Input.Email" class="text-danger" />
+                <StatusMessage Message="@Message" />
+
+                <EditForm Model="Input" method="post" OnValidSubmit="RegisterUser" FormName="register">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary class="text-danger" role="alert" />
+
+                    <div class="form-floating mb-3">
+                        <InputText @bind-Value="Input.Email" id="Input.Email" class="form-control" autocomplete="username" aria-required="true" placeholder="name@example.com" />
+                        <label for="Input.Email">Work or personal email</label>
+                        <ValidationMessage For="() => Input.Email" class="text-danger" />
+                    </div>
+
+                    <div class="form-floating mb-3">
+                        <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="form-control" autocomplete="new-password" aria-required="true" placeholder="password" />
+                        <label for="Input.Password">Password (10+ chars, upper, lower, digit &amp; symbol)</label>
+                        <ValidationMessage For="() => Input.Password" class="text-danger" />
+                    </div>
+
+                    <div class="form-floating mb-3">
+                        <InputText type="password" @bind-Value="Input.ConfirmPassword" id="Input.ConfirmPassword" class="form-control" autocomplete="new-password" aria-required="true" placeholder="password" />
+                        <label for="Input.ConfirmPassword">Confirm Password</label>
+                        <ValidationMessage For="() => Input.ConfirmPassword" class="text-danger" />
+                    </div>
+
+                    <button type="submit" class="w-100 btn btn-lg btn-primary">
+                        <i class="fa-solid fa-user-plus me-1"></i> Create Enterprise Account
+                    </button>
+                </EditForm>
+
+                <div style="margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--clippy-border); font-size: 0.85rem;">
+                    Already have an account?
+                    <a href="@(NavigationManager.GetUriWithQueryParameters("Account/Login", new Dictionary<string, object?> { ["ReturnUrl"] = ReturnUrl }))" style="color: var(--clippy-dark); font-weight: 700;">
+                        Sign in instead
+                    </a>
+                </div>
             </div>
-            <div class="form-floating mb-3">
-                <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="form-control" autocomplete="new-password" aria-required="true" placeholder="password" />
-                <label for="Input.Password">Password</label>
-                <ValidationMessage For="() => Input.Password" class="text-danger" />
+
+            <div class="clippy-auth-sidebar-panel">
+                <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--clippy-dark); margin: 0 0 0.5rem 0;">
+                    Single Sign-On (SSO)
+                </h3>
+                <p style="font-size: 0.84rem; color: var(--clippy-muted); margin-bottom: 1.25rem;">
+                    Or register instantly with an external OAuth 2.0 / OIDC provider.
+                </p>
+
+                <ExternalLoginPicker />
+
+                <div style="margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px dashed var(--clippy-border);">
+                    <div style="font-size: 0.78rem; font-weight: 700; color: var(--clippy-dark); margin-bottom: 0.6rem;">
+                        <i class="fa-solid fa-circle-check" style="color: var(--clippy-green-text);"></i> Included with Your Account
+                    </div>
+                    <ul style="margin: 0; padding-left: 1.1rem; font-size: 0.78rem; color: var(--clippy-muted); line-height: 1.7;">
+                        <li>Branded custom short aliases &amp; expiration dates</li>
+                        <li>Downloadable vector SVG QR codes</li>
+                        <li>7-day click volume, device, country &amp; referrer analytics</li>
+                        <li>Hardware Passkey (FIDO2) &amp; TOTP 2FA protection</li>
+                    </ul>
+                </div>
             </div>
-            <div class="form-floating mb-3">
-                <InputText type="password" @bind-Value="Input.ConfirmPassword" id="Input.ConfirmPassword" class="form-control" autocomplete="new-password" aria-required="true" placeholder="password" />
-                <label for="Input.ConfirmPassword">Confirm Password</label>
-                <ValidationMessage For="() => Input.ConfirmPassword" class="text-danger" />
-            </div>
-            <button type="submit" class="w-100 btn btn-lg btn-primary">Register</button>
-        </EditForm>
+        </div>
     </div>
-    <div class="col-lg-4 col-lg-offset-2">
-        <section>
-            <h3>Use another service to register.</h3>
-            <hr />
-            <ExternalLoginPicker />
-        </section>
-    </div>
-</div>
+</section>
 
 @code {
     private IEnumerable<IdentityError>? identityErrors;
@@ -77,6 +117,8 @@
         await UserStore.SetUserNameAsync(user, Input.Email, CancellationToken.None);
         var emailStore = GetEmailStore();
         await emailStore.SetEmailAsync(user, Input.Email, CancellationToken.None);
+        user.DisplayName = Input.Email.Split('@')[0];
+        user.EmailConfirmed = true;
         var result = await UserManager.CreateAsync(user, Input.Password);
 
         if (!result.Succeeded)
@@ -100,12 +142,12 @@
         {
             RedirectManager.RedirectTo(
                 "Account/RegisterConfirmation",
-                new() { ["email"] = Input.Email, ["returnUrl"] = ReturnUrl });
+                new() { ["email"] = Input.Email, ["returnUrl"] = ReturnUrl ?? "/dashboard" });
         }
         else
         {
             await SignInManager.SignInAsync(user, isPersistent: false);
-            RedirectManager.RedirectTo(ReturnUrl);
+            RedirectManager.RedirectTo(ReturnUrl ?? "/dashboard");
         }
     }
 
@@ -139,7 +181,7 @@
         public string Email { get; set; } = "";
 
         [Required]
-        [StringLength(100, ErrorMessage = "The {0} must be at least {2} and at max {1} characters long.", MinimumLength = 6)]
+        [StringLength(100, ErrorMessage = "The {0} must be at least {2} and at max {1} characters long.", MinimumLength = 10)]
         [DataType(DataType.Password)]
         [Display(Name = "Password")]
         public string Password { get; set; } = "";

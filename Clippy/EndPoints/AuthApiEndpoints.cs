@@ -1,33 +1,44 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 using System.Text;
 using Clippy.Client.Models;
 using Clippy.Data;
 using Clippy.Entities;
 using Clippy.Extensions;
+using Clippy.Services.Email;
 using Clippy.Services.Security;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+
 namespace Clippy.EndPoints;
+
 public static class AuthApiEndpoints
 {
     public static IEndpointRouteBuilder MapClippyAuthEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/auth");
-        group.MapPost("/otp/send", async ([FromBody] SendOtpRequest request,HttpContext httpContext,IOtpService otpService,
-        IDbContextFactory<ApplicationDbContext> dbFactory,IWebHostEnvironment env, ILoggerFactory loggerFactory,CancellationToken ct) =>
+
+        group.MapPost("/otp/send", async (
+            [FromBody] SendOtpRequest request,
+            HttpContext httpContext,
+            IOtpService otpService,
+            IClippyEmailService emailService,
+            IDbContextFactory<ApplicationDbContext> dbFactory,
+            CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(request.Email))
             {
-                return Results.BadRequest(new { error = "Valid email is required." });
+                return Results.BadRequest(new { error = "Valid email address is required." });
             }
-            var result = otpService.GenerateOtp(request.Email,request.Purpose);
+
+            var cleanEmail = request.Email.Trim();
+            var result = otpService.GenerateOtp(cleanEmail, request.Purpose);
             await using var db = await dbFactory.CreateDbContextAsync(ct);
             var ipHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown")))[..32];
             db.OtpRecords.Add(new OtpRecord
             {
-                TargetIdentifier = request.Email.Trim().ToLowerInvariant(),
+                TargetIdentifier = cleanEmail.ToLowerInvariant(),
                 Purpose = request.Purpose,
                 CodeHmac = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(result.rawCode))),
                 CreatedAtUtc = DateTime.UtcNow,
@@ -35,19 +46,25 @@ public static class AuthApiEndpoints
                 RequestIpHash = ipHash
             });
             await db.SaveChangesAsync(ct);
-            var logger = loggerFactory.CreateLogger("Clippy.OtpDispatcher");
-            logger.LogWarning("==========================================================");
-            logger.LogWarning("[CLIPPY OTP DISPATCH] Target: {Email} | OTP CODE: {Code} | Expires: {Expiry:HH:mm:ss} UTC",
-                request.Email, result.rawCode, result.ExpiresAtUtc);
-            logger.LogWarning("==========================================================");
+
+            var dispatchedEmail = await emailService.SendOtpVerificationEmailAsync(
+                cleanEmail,
+                result.rawCode,
+                request.Purpose,
+                result.ExpiresAtUtc,
+                ct);
+
             return Results.Ok(new
             {
-                message = "A 6-digit verification code has been generated.",
+                message = $"A 6-digit verification code has been sent to {cleanEmail}.",
                 expiresAtUtc = result.ExpiresAtUtc,
-                devPreviewCode = env.IsDevelopment() ? result.rawCode : null
+                deliveredViaSmtp = dispatchedEmail.DeliveredViaSmtp,
+                deliveryNote = dispatchedEmail.DeliveryStatusNote,
+                mailboxMessageId = dispatchedEmail.Id
             });
         }).RequireRateLimiting(RateLimitExtensions.OtpPolicy).AllowAnonymous();
-        group.MapPost("/otp/verify", async ([FromBody] VerifyOtpRequest request,IOtpService otpService,UserManager<ApplicationUser> userManager,SignInManager<ApplicationUser> signInManager) =>
+
+        group.MapPost("/otp/verify", async ([FromBody] VerifyOtpRequest request, IOtpService otpService, UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager) =>
         {
             var verification = otpService.VerifyOtp(request.EmailAddress, request.Code, request.Purpose);
             if (!verification.IsValid)
@@ -86,24 +103,26 @@ public static class AuthApiEndpoints
             return Results.Ok(new
             {
                 isValid = true,
-                message = "Otp Verified.You are signed in.",
+                message = "OTP Verified. You are signed in.",
                 redirectUrl = "/dashboard"
             });
         }).RequireRateLimiting(RateLimitExtensions.OtpPolicy).AllowAnonymous();
-        group.MapGet("/external/{provider}",(string provider,string? returnUrl,SignInManager<ApplicationUser> signInManager) =>
+
+        group.MapGet("/external/{provider}", (string provider, string? returnUrl, SignInManager<ApplicationUser> signInManager) =>
         {
             var redirectUrl = $"/api/auth/external-callback?returnUrl={Uri.EscapeDataString(returnUrl ?? "/dashboard")}";
-            var properties = signInManager.ConfigureExternalAuthenticationProperties(provider,redirectUrl);
+            var properties = signInManager.ConfigureExternalAuthenticationProperties(provider, redirectUrl);
             return Results.Challenge(properties, [provider]);
         }).AllowAnonymous();
-        group.MapGet("/external-callback", async (string? returnUrl,SignInManager<ApplicationUser> signInManager,UserManager<ApplicationUser> userManager) =>
+
+        group.MapGet("/external-callback", async (string? returnUrl, SignInManager<ApplicationUser> signInManager, UserManager<ApplicationUser> userManager) =>
         {
             var info = await signInManager.GetExternalLoginInfoAsync();
-            if(info is null)
+            if (info is null)
             {
-                return Results.Redirect("/auth/login?error=ExternalLoginFailed");
+                return Results.Redirect("/Account/Login?error=ExternalLoginFailed");
             }
-            var signInResult = await signInManager.ExternalLoginSignInAsync(info.LoginProvider,info.ProviderKey,isPersistent:true,bypassTwoFactor:true);
+            var signInResult = await signInManager.ExternalLoginSignInAsync(info.LoginProvider, info.ProviderKey, isPersistent: true, bypassTwoFactor: true);
             if (signInResult.Succeeded)
             {
                 return Results.Redirect(returnUrl ?? "/dashboard");
@@ -124,9 +143,10 @@ public static class AuthApiEndpoints
                 await userManager.CreateAsync(user);
             }
             await userManager.AddLoginAsync(user, info);
-            await signInManager.SignInAsync(user,isPersistent:true);
+            await signInManager.SignInAsync(user, isPersistent: true);
             return Results.Redirect(returnUrl ?? "/dashboard");
         }).AllowAnonymous();
+
         return app;
     }
 }

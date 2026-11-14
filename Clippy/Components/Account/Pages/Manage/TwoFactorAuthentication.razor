@@ -1,4 +1,4 @@
-﻿@page "/Account/Manage/TwoFactorAuthentication"
+@page "/Account/Manage/TwoFactorAuthentication"
 
 @using Microsoft.AspNetCore.Http.Features
 @using Microsoft.AspNetCore.Identity
@@ -8,64 +8,92 @@
 @inject SignInManager<ApplicationUser> SignInManager
 @inject IdentityRedirectManager RedirectManager
 
-<PageTitle>Two-factor authentication (2FA)</PageTitle>
+<PageTitle>Two-Factor Authentication (2FA) | Clippy Enterprise</PageTitle>
+
+<div style="margin-bottom: 1.5rem;">
+    <span class="eyebrow-pill" style="margin-bottom: 0.35rem;">
+        <i class="fa-solid fa-shield-halved"></i> RFC 6238 TOTP &bull; Multi-Factor Protection
+    </span>
+    <h3 style="font-size: 1.45rem; font-weight: 800; color: var(--clippy-dark); margin: 0;">Two-Factor Authentication (2FA)</h3>
+    <p style="font-size: 0.85rem; color: var(--clippy-muted); margin: 0.25rem 0 0 0;">
+        Protect your shortened links and analytics workspace with an authenticator app and recovery codes.
+    </p>
+</div>
 
 <StatusMessage />
-<h3>Two-factor authentication (2FA)</h3>
+
 @if (canTrack)
 {
+    <div style="background: var(--clippy-cream); border: 1px solid var(--clippy-border); border-radius: 1.25rem; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div>
+            <span style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--clippy-muted);">2FA Status</span>
+            <div style="font-size: 1.05rem; font-weight: 800; color: @(is2faEnabled ? "var(--clippy-green-text)" : "var(--clippy-dark)"); margin-top: 0.2rem;">
+                <i class="fa-solid @(is2faEnabled ? "fa-lock" : "fa-lock-open") me-1"></i>
+                @(is2faEnabled ? "Two-Factor Authentication Enabled" : "2FA Not Yet Enabled")
+            </div>
+        </div>
+        @if (is2faEnabled)
+        {
+            <span style="background: var(--clippy-green-soft); color: var(--clippy-green-text); font-weight: 700; font-size: 0.8rem; padding: 0.35rem 0.85rem; border-radius: 9999px;">
+                @recoveryCodesLeft Recovery Codes Remaining
+            </span>
+        }
+    </div>
+
     if (is2faEnabled)
     {
         if (recoveryCodesLeft == 0)
         {
             <div class="alert alert-danger">
                 <strong>You have no recovery codes left.</strong>
-                <p>You must <a href="Account/Manage/GenerateRecoveryCodes">generate a new set of recovery codes</a> before you can log in with a recovery code.</p>
-            </div>
-        }
-        else if (recoveryCodesLeft == 1)
-        {
-            <div class="alert alert-danger">
-                <strong>You have 1 recovery code left.</strong>
-                <p>You can <a href="Account/Manage/GenerateRecoveryCodes">generate a new set of recovery codes</a>.</p>
+                <p class="mb-0">You must <a href="Account/Manage/GenerateRecoveryCodes">generate a new set of recovery codes</a> before you can log in with a recovery code.</p>
             </div>
         }
         else if (recoveryCodesLeft <= 3)
         {
             <div class="alert alert-warning">
-                <strong>You have @recoveryCodesLeft recovery codes left.</strong>
-                <p>You should <a href="Account/Manage/GenerateRecoveryCodes">generate a new set of recovery codes</a>.</p>
+                <strong>You have @recoveryCodesLeft recovery code(s) left.</strong>
+                <p class="mb-0">You should <a href="Account/Manage/GenerateRecoveryCodes">generate a new set of recovery codes</a>.</p>
             </div>
         }
 
-        if (isMachineRemembered)
+        <div style="display: flex; gap: 0.65rem; flex-wrap: wrap; margin-bottom: 1.75rem;">
+            @if (isMachineRemembered)
+            {
+                <form style="display: inline-block" @formname="forget-browser" @onsubmit="OnSubmitForgetBrowserAsync" method="post">
+                    <AntiforgeryToken />
+                    <button type="submit" class="btn-clippy-outline">Forget this browser</button>
+                </form>
+            }
+            <a href="Account/Manage/Disable2fa" class="btn-clippy-danger">Disable 2FA</a>
+            <a href="Account/Manage/GenerateRecoveryCodes" class="btn-clippy-outline">Reset recovery codes</a>
+        </div>
+    }
+
+    <h4 style="font-size: 1.05rem; font-weight: 800; margin-bottom: 0.75rem;">Authenticator App (Google / Microsoft / Authy)</h4>
+    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+        @if (!hasAuthenticator)
         {
-            <form style="display: inline-block" @formname="forget-browser" @onsubmit="OnSubmitForgetBrowserAsync" method="post">
-                <AntiforgeryToken />
-                <button type="submit" class="btn btn-primary">Forget this browser</button>
-            </form>
+            <a href="Account/Manage/EnableAuthenticator" class="btn-clippy-green">
+                <i class="fa-solid fa-qrcode"></i> Add Authenticator App (QR Setup)
+            </a>
         }
-
-        <a href="Account/Manage/Disable2fa" class="btn btn-primary">Disable 2FA</a>
-        <a href="Account/Manage/GenerateRecoveryCodes" class="btn btn-primary">Reset recovery codes</a>
-    }
-
-    <h4>Authenticator app</h4>
-    @if (!hasAuthenticator)
-    {
-        <a href="Account/Manage/EnableAuthenticator" class="btn btn-primary">Add authenticator app</a>
-    }
-    else
-    {
-        <a href="Account/Manage/EnableAuthenticator" class="btn btn-primary">Set up authenticator app</a>
-        <a href="Account/Manage/ResetAuthenticator" class="btn btn-primary">Reset authenticator app</a>
-    }
+        else
+        {
+            <a href="Account/Manage/EnableAuthenticator" class="btn-clippy-green">
+                <i class="fa-solid fa-qrcode"></i> Configure Authenticator App
+            </a>
+            <a href="Account/Manage/ResetAuthenticator" class="btn-clippy-outline">
+                <i class="fa-solid fa-rotate-left"></i> Reset Authenticator Key
+            </a>
+        }
+    </div>
 }
 else
 {
     <div class="alert alert-danger">
         <strong>Privacy and cookie policy have not been accepted.</strong>
-        <p>You must accept the policy before you can enable two factor authentication.</p>
+        <p class="mb-0">You must accept the policy before you can enable two factor authentication.</p>
     </div>
 }
 

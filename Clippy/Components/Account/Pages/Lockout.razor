@@ -1,8 +1,19 @@
-﻿@page "/Account/Lockout"
+@page "/Account/Lockout"
 
-<PageTitle>Locked out</PageTitle>
+<PageTitle>Account Locked Out | Clippy Enterprise</PageTitle>
 
-<header>
-    <h1 class="text-danger">Locked out</h1>
-    <p class="text-danger" role="alert">This account has been locked out, please try again later.</p>
-</header>
+<section class="clippy-auth-container" style="max-width: 620px;">
+    <div class="clippy-auth-card" style="text-align: center;">
+        <div class="eyebrow-pill" style="background: var(--clippy-danger-soft); color: #991B1B;">
+            <i class="fa-solid fa-lock"></i> Brute-Force Lockout Protection Active
+        </div>
+        <h1 style="font-size: 1.9rem; font-weight: 800; color: var(--clippy-dark); margin-bottom: 0.5rem;">Account Temporarily Locked</h1>
+        <p style="color: var(--clippy-muted); margin-bottom: 1.5rem;" role="alert">
+            This account has been locked out for 15 minutes due to multiple failed sign-in attempts. Please try again later or reset your password.
+        </p>
+        <div style="display: flex; justify-content: center; gap: 0.75rem;">
+            <a href="/Account/ForgotPassword" class="btn-clippy-dark">Reset Password</a>
+            <a href="/" class="btn-clippy-outline">Return Home</a>
+        </div>
+    </div>
+</section>

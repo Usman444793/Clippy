@@ -1,4 +1,4 @@
-﻿@page "/Account/ResendEmailConfirmation"
+@page "/Account/ResendEmailConfirmation"
 
 @using System.ComponentModel.DataAnnotations
 @using System.Text
@@ -12,14 +12,17 @@
 @inject NavigationManager NavigationManager
 @inject IdentityRedirectManager RedirectManager
 
-<PageTitle>Resend email confirmation</PageTitle>
+<PageTitle>Resend email confirmation | Clippy Enterprise</PageTitle>
 
-<h1>Resend email confirmation</h1>
-<h2>Enter your email.</h2>
-<hr />
-<StatusMessage Message="@message" />
-<div class="row">
-    <div class="col-md-4">
+<section class="clippy-auth-container" style="max-width: 620px;">
+    <div class="clippy-auth-card">
+        <div class="eyebrow-pill" style="margin-bottom: 0.65rem;">
+            <i class="fa-regular fa-envelope"></i> Email Verification
+        </div>
+        <h1 style="font-size: 1.85rem; font-weight: 800; color: var(--clippy-dark); margin: 0 0 0.35rem 0;">Resend email confirmation</h1>
+        <p style="color: var(--clippy-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">Enter your email address to receive a new verification link.</p>
+
+        <StatusMessage Message="@message" />
         <EditForm Model="Input" FormName="resend-email-confirmation" OnValidSubmit="OnValidSubmitAsync" method="post">
             <DataAnnotationsValidator />
             <ValidationSummary class="text-danger" role="alert" />
@@ -28,10 +31,16 @@
                 <label for="Input.Email" class="form-label">Email</label>
                 <ValidationMessage For="() => Input.Email" class="text-danger" />
             </div>
-            <button type="submit" class="w-100 btn btn-lg btn-primary">Resend</button>
+            <button type="submit" class="w-100 btn btn-lg btn-primary">Resend Confirmation</button>
         </EditForm>
+
+        <div style="margin-top: 1.25rem; text-align: center; font-size: 0.85rem;">
+            <a href="/Account/Login" style="color: var(--clippy-dark); font-weight: 700; text-decoration: none;">
+                &larr; Back to Sign In
+            </a>
+        </div>
     </div>
-</div>
+</section>
 
 @code {
     private string? message;
