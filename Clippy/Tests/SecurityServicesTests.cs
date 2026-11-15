@@ -129,6 +129,115 @@ public class SecurityServicesTests
         Assert.Equal("owner-a-updated", ownerEdit.Data!.CustomAlias);
     }
 
+    [Fact]
+    public async Task UrlShortenerService_DateTimeKindUnspecifiedAndFullLifecycle_NormalizesToUtcAndHandlesQrAndAnalytics()
+    {
+        var dbName = $"Clippy_FullLifecycle_{Guid.NewGuid()}";
+        var dbFactory = new SimpleInMemoryFactory(dbName);
+        using var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var config = Options.Create(new ShortenerConfigOptions { SnowflakeMachineId = 3, DefaultCacheDurationMinutes = 10 });
+        var resolutionCache = new UrlResolutionCache(memoryCache, dbFactory, config);
+        var service = new UrlShortenerService(
+            dbFactory,
+            new SnowFlakeBase62CodeGenerator(config),
+            new UrlSafetyScanner(),
+            new QrCodeService(),
+            resolutionCache);
+
+        // 1. Create with DateTimeKind.Unspecified (simulating HTML <input type="date" /> binding)
+        var unspecifiedExpiry = new DateTime(2027, 12, 31, 0, 0, 0, DateTimeKind.Unspecified);
+        var created = await service.CreateShortUrlAsync(new CreateShortUrlRequest
+        {
+            DestinationUrl = "https://cloud.oracle.com/database",
+            CustomAlias = "oracle-pg-deploy",
+            Title = "Oracle Cloud PostgreSQL",
+            ExpiresAtUtc = unspecifiedExpiry
+        }, userId: "owner-1", baseUrl: "https://clippy.io");
+
+        Assert.True(created.Succeeded);
+        Assert.NotNull(created.Data);
+        Assert.NotNull(created.Data!.ExpiresAtUtc);
+        Assert.Equal(DateTimeKind.Utc, created.Data.ExpiresAtUtc!.Value.Kind);
+        Assert.StartsWith("data:image/svg+xml;base64,", created.Data.QrCodeSvgBase64);
+
+        // 2. Verify persisted entity in ApplicationDbContext has DateTimeKind.Utc
+        await using (var db = dbFactory.CreateDbContext())
+        {
+            var stored = await db.ShortUrls.SingleAsync(x => x.Id == created.Data.Id);
+            Assert.Equal(DateTimeKind.Utc, stored.CreatedAtUtc.Kind);
+            Assert.NotNull(stored.ExpiresAtUtc);
+            Assert.Equal(DateTimeKind.Utc, stored.ExpiresAtUtc!.Value.Kind);
+
+            // Seed click telemetry with Unspecified DateTime to verify ApplicationDbContext.SaveChangesAsync normalizer
+            db.UrlClickLogs.Add(new UrlClickLog
+            {
+                ShortUrlId = stored.Id,
+                ShortCode = stored.shortCode,
+                ClickedAtUtc = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Unspecified),
+                AnonymizedVisitorHash = "abc123hash",
+                CountryCode = "PK",
+                DeviceType = "Desktop",
+                BrowserName = "Chrome",
+                OsName = "Windows",
+                ReferrerHost = "github.com"
+            });
+            await db.SaveChangesAsync();
+
+            var savedLog = await db.UrlClickLogs.SingleAsync(x => x.ShortUrlId == stored.Id);
+            Assert.Equal(DateTimeKind.Utc, savedLog.ClickedAtUtc.Kind);
+        }
+
+        // 3. Update with DateTimeKind.Local and verify cache eviction + UTC normalization
+        var updated = await service.UpdateUrlAsync(created.Data.Id, new UpdateShortUrlRequest
+        {
+            DestinationUrl = "https://www.postgresql.org/docs/",
+            CustomAlias = "pg-docs-updated",
+            Title = "PostgreSQL Docs",
+            ExpiresAtUtc = DateTime.Now.AddDays(30),
+            IsActive = true
+        }, userId: "owner-1", baseUrl: "https://clippy.io");
+
+        Assert.True(updated.Succeeded);
+        Assert.Equal(DateTimeKind.Utc, updated.Data!.ExpiresAtUtc!.Value.Kind);
+
+        // 4. Pause & Resume toggle + L1 resolution check
+        var paused = await service.ToggleUrlStatusAsync(created.Data.Id, "owner-1");
+        Assert.True(paused.Succeeded);
+        Assert.False(paused.Data);
+        var resolvedWhenPaused = await resolutionCache.ResolveShortCodeAsync("pg-docs-updated");
+        Assert.Equal(RedirectResolutionStatus.BlockedOrInactive, resolvedWhenPaused.Status);
+
+        var resumed = await service.ToggleUrlStatusAsync(created.Data.Id, "owner-1");
+        Assert.True(resumed.Succeeded);
+        Assert.True(resumed.Data);
+        var resolvedWhenActive = await resolutionCache.ResolveShortCodeAsync("pg-docs-updated");
+        Assert.Equal(RedirectResolutionStatus.Found, resolvedWhenActive.Status);
+
+        // 5. Analytics summary verification
+        var analytics = await service.GetAnalyticsAsync("pg-docs-updated", "owner-1");
+        Assert.NotNull(analytics);
+        Assert.Equal(1, analytics!.TotalClicks);
+        Assert.Equal(1, analytics.UniqueVisitors);
+        Assert.Equal(7, analytics.Last7DaysClick.Count);
+        Assert.Single(analytics.TopCountries);
+
+        // 6. Delete + verify cache eviction
+        var deleted = await service.DeleteUrlAsync(created.Data.Id, "owner-1");
+        Assert.True(deleted);
+        var resolvedAfterDelete = await resolutionCache.ResolveShortCodeAsync("pg-docs-updated");
+        Assert.Equal(RedirectResolutionStatus.NotFound, resolvedAfterDelete.Status);
+    }
+
+    [Fact]
+    public void PostgreSqlDesignTimeModel_HasValidMigrationsAndNoPendingModelChanges()
+    {
+        var factory = new DesignTimeApplicationDbContextFactory();
+        using var db = factory.CreateDbContext([]);
+        var migrations = db.Database.GetMigrations().ToList();
+        Assert.NotEmpty(migrations);
+        Assert.False(db.Database.HasPendingModelChanges());
+    }
+
     private sealed class SimpleInMemoryFactory(string databaseName) : IDbContextFactory<ApplicationDbContext>
     {
         public ApplicationDbContext CreateDbContext()

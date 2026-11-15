@@ -575,6 +575,12 @@
                 links = [];
             }
         }
+        catch (Exception ex)
+        {
+            feedbackMessage = $"Unable to load links: {ex.Message}";
+            isFeedbackError = true;
+            links = [];
+        }
         finally
         {
             isLoading = false;
@@ -607,6 +613,11 @@
             feedbackMessage = $"Created owner-protected link {result.Data.ShortenedFullUrl}!";
             isFeedbackError = false;
             await LoadLinksAsync();
+        }
+        catch (Exception ex)
+        {
+            feedbackMessage = $"Error creating link: {ex.Message}";
+            isFeedbackError = true;
         }
         finally
         {
@@ -662,6 +673,10 @@
             editingItem = null;
             await LoadLinksAsync();
         }
+        catch (Exception ex)
+        {
+            editModalError = $"Error updating link: {ex.Message}";
+        }
         finally
         {
             isSavingEdit = false;
@@ -696,6 +711,12 @@
                 feedbackMessage = $"No telemetry found for code '/{code}' or you do not own this link.";
                 isFeedbackError = true;
             }
+        }
+        catch (Exception ex)
+        {
+            isAnalyticsModalOpen = false;
+            feedbackMessage = $"Error loading analytics: {ex.Message}";
+            isFeedbackError = true;
         }
         finally
         {

@@ -66,7 +66,7 @@ public sealed class UrlShortenerService(
             Title = string.IsNullOrWhiteSpace(request.Title) ? ExtractHostTitle(destinationUrl) : request.Title.Trim(),
             UserId = userId,
             CreatedAtUtc = DateTime.UtcNow,
-            ExpiresAtUtc = request.ExpiresAtUtc,
+            ExpiresAtUtc = NormalizeToUtc(request.ExpiresAtUtc),
             IsActive = true,
             SafetyStatus = scan.Status,
             TotalClicks = 0
@@ -123,7 +123,7 @@ public sealed class UrlShortenerService(
         entity.DestinationUrl = destinationUrl;
         entity.CustomAlias = cleanAlias;
         entity.Title = string.IsNullOrWhiteSpace(request.Title) ? ExtractHostTitle(destinationUrl) : request.Title.Trim();
-        entity.ExpiresAtUtc = request.ExpiresAtUtc;
+        entity.ExpiresAtUtc = NormalizeToUtc(request.ExpiresAtUtc);
         entity.IsActive = request.IsActive;
         entity.SafetyStatus = scan.Status;
 
@@ -287,4 +287,25 @@ public sealed class UrlShortenerService(
 
     private static string ExtractHostTitle(string url) =>
         Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.Host : "Shortened Link";
+
+    private static DateTime? NormalizeToUtc(DateTime? value)
+    {
+        if (!value.HasValue)
+        {
+            return null;
+        }
+
+        var dt = value.Value;
+        if (dt.Kind == DateTimeKind.Unspecified && dt.TimeOfDay == TimeSpan.Zero)
+        {
+            dt = dt.Date.AddDays(1).AddSeconds(-1);
+        }
+
+        return dt.Kind switch
+        {
+            DateTimeKind.Utc => dt,
+            DateTimeKind.Local => dt.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(dt, DateTimeKind.Utc)
+        };
+    }
 }

@@ -109,6 +109,12 @@ public static class HealthEndpoints
         await RunTestAsync("SecurityServicesTests.UrlShortenerService_EnforcesStrictOwnerOnlyAuthorizationAndIsolation",
             () => securityTests.UrlShortenerService_EnforcesStrictOwnerOnlyAuthorizationAndIsolation());
 
+        await RunTestAsync("SecurityServicesTests.UrlShortenerService_DateTimeKindUnspecifiedAndFullLifecycle_NormalizesToUtcAndHandlesQrAndAnalytics",
+            () => securityTests.UrlShortenerService_DateTimeKindUnspecifiedAndFullLifecycle_NormalizesToUtcAndHandlesQrAndAnalytics());
+
+        await RunTestAsync("SecurityServicesTests.PostgreSqlDesignTimeModel_HasValidMigrationsAndNoPendingModelChanges",
+            () => { securityTests.PostgreSqlDesignTimeModel_HasValidMigrationsAndNoPendingModelChanges(); return Task.CompletedTask; });
+
         await RunTestAsync("SnowflakeConcurrencyTests.NextId_UnderHighParallelism_Generates100kUniqueIdsAndCodesWithZeroCollisions",
             () =>
             {
