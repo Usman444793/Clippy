@@ -48,7 +48,7 @@ Designed from the ground up to handle viral traffic spikes without database bott
 ## 2. System Architecture
 
 ```mermaid
-flowchart TB
+graph TB
     subgraph ClientTier["Client & Edge Tier"]
         Browser["Browser / Blazor UI<br/>(Interactive Server & WASM)"]
         Mobile["QR Scanner / External Visitor"]
