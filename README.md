@@ -134,7 +134,7 @@ docker compose up --build -d
    dotnet run --project Clippy/Clippy.csproj
    ```
 
-4. Navigate to `https://localhost:7188` or `http://localhost:5230`.
+4. Navigate to `https://clippy.runasp.net`.
 
 ---
 
