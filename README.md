@@ -116,8 +116,8 @@ Clippy/
 docker compose up --build -d
 ```
 
-- Web application: `http://localhost:8080`
-- Health probe: `http://localhost:8080/healthz`
+- Web application: `http://clippy.runasp.net`
+- Health probe: `http://clippy.runasp.net/healthz`
 
 ### Option B: Local .NET 10 CLI
 
