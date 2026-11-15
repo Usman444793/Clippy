@@ -32,7 +32,7 @@ else
                 @foreach (var provider in externalLogins)
                 {
                     <button type="submit" class="btn-clippy-outline w-100" name="provider" value="@provider.Name" title="Log in using your @provider.DisplayName account">
-                        <i class="fa-solid fa-shield-halved" style="color: var(--clippy-green-text);"></i>
+                        <i class="@GetProviderIconClass(provider)" style="@GetProviderIconStyle(provider)"></i>
                         <span>Continue with @provider.DisplayName</span>
                     </button>
                 }
@@ -46,6 +46,42 @@ else
 
     [SupplyParameterFromQuery]
     private string? ReturnUrl { get; set; }
+
+    private static string GetProviderIconClass(AuthenticationScheme provider)
+    {
+        var providerName = $"{provider.Name} {provider.DisplayName}";
+
+        if (providerName.Contains("google", StringComparison.OrdinalIgnoreCase))
+        {
+            return "fa-brands fa-google";
+        }
+
+        if (providerName.Contains("facebook", StringComparison.OrdinalIgnoreCase) ||
+            providerName.Contains("meta", StringComparison.OrdinalIgnoreCase))
+        {
+            return "fa-brands fa-facebook-f";
+        }
+
+        return "fa-solid fa-cloud-bolt";
+    }
+
+    private static string GetProviderIconStyle(AuthenticationScheme provider)
+    {
+        var providerName = $"{provider.Name} {provider.DisplayName}";
+
+        if (providerName.Contains("google", StringComparison.OrdinalIgnoreCase))
+        {
+            return "color: #4285f4;";
+        }
+
+        if (providerName.Contains("facebook", StringComparison.OrdinalIgnoreCase) ||
+            providerName.Contains("meta", StringComparison.OrdinalIgnoreCase))
+        {
+            return "color: #1877f2;";
+        }
+
+        return "color: var(--clippy-green-text);";
+    }
 
     protected override async Task OnInitializedAsync()
     {
